@@ -1,18 +1,22 @@
 -- HomeHeros Authentication and User Profiles Migration
 -- This migration sets up user profiles that extend Supabase Auth
 
--- Create enum for user roles as defined in QRD
-CREATE TYPE user_role AS ENUM (
-  'customer',
-  'hero', 
-  'admin',
-  'cs',
-  'finance',
-  'contractor_manager'
-);
+-- Create enum for user roles as defined in QRD (if not exists)
+DO $$ BEGIN
+    CREATE TYPE user_role AS ENUM (
+      'customer',
+      'hero', 
+      'admin',
+      'cs',
+      'finance',
+      'contractor_manager'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- Create profiles table that extends auth.users
-CREATE TABLE public.profiles (
+-- Create profiles table that extends auth.users (if not exists)
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   role user_role NOT NULL DEFAULT 'customer',
   name TEXT,

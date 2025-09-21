@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
-import { UserProfile } from '../../../shared/supabase-config';
+import { supabase, UserProfile } from '../lib/supabase';
+import { testSupabaseConnection } from '../utils/testSupabase';
+import { testNetworkConnectivity } from '../utils/networkTest';
+import { debugSupabaseSetup } from '../utils/debugSupabase';
 
 interface AuthContextType {
   user: User | null;
@@ -56,6 +58,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
+    // Debug Supabase setup
+    debugSupabaseSetup();
+    
+    // Test network connectivity first
+    testNetworkConnectivity();
+    
+    // Test Supabase connection
+    testSupabaseConnection();
+    
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
@@ -90,11 +101,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      console.log('Attempting signup with:', email);
+      console.log('Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL);
+      console.log('API Key length:', process.env.EXPO_PUBLIC_SUPABASE_KEY?.length);
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: undefined, // Disable email confirmation for now
+        }
+      });
+      
+      if (error) {
+        console.error('Signup error details:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        });
+        return { error };
+      }
+      
+      console.log('Signup successful:', {
+        user: data.user?.id,
+        session: data.session?.access_token ? 'present' : 'null',
+      });
+      return { error: null };
+    } catch (err) {
+      console.error('Unexpected signup error:', err);
+      return { error: err };
+    }
   };
 
   const signIn = async (email: string, password: string) => {

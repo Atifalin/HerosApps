@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { testDirectAuth } from '../../utils/testDirectAuth';
 
 interface SignUpScreenProps {
   navigation: any;
@@ -40,17 +41,32 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password);
-    setLoading(false);
+    try {
+      // Test direct auth first
+      console.log('Testing direct auth...');
+      const directResult = await testDirectAuth(email, password);
+      
+      if (directResult.success) {
+        console.log('Direct auth worked! Now trying Supabase client...');
+      }
+      
+      const { error } = await signUp(email, password);
+      setLoading(false);
 
-    if (error) {
-      Alert.alert('Sign Up Failed', error.message);
-    } else {
-      Alert.alert(
-        'Success',
-        'Account created successfully! Please check your email to verify your account.',
-        [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-      );
+      if (error) {
+        console.log('Error details:', JSON.stringify(error));
+        Alert.alert('Sign Up Failed', error.message || 'Network request failed. Please check your connection.');
+      } else {
+        Alert.alert(
+          'Success',
+          'Account created successfully! Please check your email to verify your account.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+        );
+      }
+    } catch (err) {
+      setLoading(false);
+      console.error('Unexpected error during signup:', err);
+      Alert.alert('Sign Up Failed', 'An unexpected error occurred. Please try again later.');
     }
   };
 

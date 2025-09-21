@@ -29,11 +29,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     }
 
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
+    try {
+      console.log('Attempting login with:', email);
+      const { error } = await signIn(email, password);
+      setLoading(false);
 
-    if (error) {
-      Alert.alert('Login Failed', error.message);
+      if (error) {
+        console.error('Login error:', error);
+        Alert.alert('Login Failed', error.message || 'Network request failed. Please check your connection.');
+      } else {
+        console.log('Login successful');
+      }
+    } catch (err) {
+      setLoading(false);
+      console.error('Unexpected error during login:', err);
+      Alert.alert('Login Failed', 'An unexpected error occurred. Please try again later.');
     }
   };
 
