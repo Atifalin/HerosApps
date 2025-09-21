@@ -1,3 +1,5 @@
-// Supabase configuration
-export const SUPABASE_URL = 'https://vttzuaerdwagipyocpha.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dHp1YWVyZHdhZ2lweW9jcGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0Nzc1NDMsImV4cCI6MjA3NDA1MzU0M30.-QyK-_-jrVowVoMFy8IpCeVaeP59VNUCZtRmTD6Pfwc';
+// Supabase configuration - using shared config
+import { SUPABASE_CONFIG } from '../../../shared/supabase-config';
+
+export const SUPABASE_URL = SUPABASE_CONFIG.url;
+export const SUPABASE_ANON_KEY = SUPABASE_CONFIG.anonKey;
