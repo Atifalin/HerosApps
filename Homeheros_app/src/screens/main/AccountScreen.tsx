@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Typography, Card, Button } from '../../components/ui';
 import { theme } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface MenuItem {
   id: string;
@@ -30,6 +31,46 @@ interface AccountScreenProps {
 export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
   const { user, profile, signOut } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [activeBookingsCount, setActiveBookingsCount] = useState<number>(0);
+  const [loadingBookings, setLoadingBookings] = useState(true);
+  
+  // Fetch active bookings count when screen is focused
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchActiveBookingsCount();
+    });
+    
+    // Initial fetch
+    fetchActiveBookingsCount();
+    
+    return unsubscribe;
+  }, [navigation]);
+  
+  const fetchActiveBookingsCount = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingBookings(true);
+      
+      // Get count of active bookings (not completed or cancelled)
+      const { count, error } = await supabase
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('customer_id', user.id)
+        .not('status', 'in', '("completed","cancelled")');
+      
+      if (error) {
+        console.error('Error fetching active bookings count:', error);
+        return;
+      }
+      
+      setActiveBookingsCount(count || 0);
+    } catch (error) {
+      console.error('Error in fetchActiveBookingsCount:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -60,7 +101,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
 
   const handleBookingHistory = () => {
     // Navigate to booking history screen
-    console.log('Booking history');
+    navigation.navigate('BookingHistory');
   };
 
   const handleAddresses = () => {
@@ -99,6 +140,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
       icon: 'calendar-outline',
       action: handleBookingHistory,
       showChevron: true,
+      badge: activeBookingsCount > 0 ? `${activeBookingsCount}` : undefined,
     },
     {
       id: 'addresses',

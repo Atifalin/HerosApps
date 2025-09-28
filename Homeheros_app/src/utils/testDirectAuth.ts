@@ -5,7 +5,8 @@ export const testDirectAuth = async (email: string, password: string) => {
   try {
     console.log('🧪 Testing direct auth with fetch...');
     
-    const response = await fetch('https://vttzuaerdwagipyocpha.supabase.co/auth/v1/signup', {
+    const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

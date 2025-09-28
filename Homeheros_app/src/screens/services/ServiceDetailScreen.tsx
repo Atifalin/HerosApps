@@ -11,46 +11,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Button, Card } from '../../components/ui';
 import { theme } from '../../theme';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ParamListBase } from '@react-navigation/native';
+import { serviceCatalog, getServiceById } from '../../data/serviceCatalog';
 
-interface SubCategory {
-  id: string;
-  name: string;
-  description: string;
-  price?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-}
-
-// Define the route params interface
-interface ServiceDetailRouteParams {
-  service: {
-    id: string;
-    name: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    color: string;
-    description: string;
-    image: any;
-    subcategories: SubCategory[];
+interface ServiceDetailScreenProps {
+  navigation: any;
+  route: {
+    params: {
+      service: {
+        id: string;
+        name: string;
+        icon: string;
+        color: string;
+        description: string;
+        image: any;
+        subcategories: any[];
+      };
+    };
   };
 }
-
-// Extend ParamListBase to include our route params
-type ExtendedParamList = ParamListBase & {
-  ServiceDetail: ServiceDetailRouteParams;
-};
-
-type ServiceDetailScreenProps = NativeStackScreenProps<ExtendedParamList, 'ServiceDetail'>;
 
 const { width: screenWidth } = Dimensions.get('window');
 
 export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({ route, navigation }) => {
   const { service } = route.params;
 
-  const handleSubcategoryPress = (subcategory: SubCategory) => {
-    // Navigate to subcategory detail or booking screen
-    console.log(`Selected subcategory: ${subcategory.name}`);
-    // TODO: Implement navigation to booking flow
+  const handleSubcategoryPress = (subcategory: any) => {
+    // Navigate to booking screen
+    const fullService = getServiceById(service.id) || service;
+    navigation.navigate('Booking', { 
+      service: fullService, 
+      subcategory 
+    });
   };
 
   return (
@@ -68,18 +59,18 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({ route,
             </TouchableOpacity>
           </View>
         </View>
-
+        
         {/* Service title and description */}
         <View style={styles.contentContainer}>
           <View style={styles.titleContainer}>
             <View style={[styles.iconContainer, { backgroundColor: service.color }]}>
-              <Ionicons name={service.icon} size={28} color={theme.colors.neutral.white} />
+              <Ionicons name={service.icon as any} size={32} color={service.color} />
             </View>
             <View style={styles.titleTextContainer}>
               <Typography variant="h4" weight="semibold" color="primary">
                 {service.name}
               </Typography>
-              <Typography variant="body1" color="secondary" style={styles.description}>
+              <Typography variant="body1" color="secondary">
                 {service.description}
               </Typography>
             </View>

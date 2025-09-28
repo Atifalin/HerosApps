@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,6 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Typography, Card, Input } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation } from '../../contexts/LocationContext';
+import { serviceCatalog } from '../../data/serviceCatalog';
+import { supabase } from '../../lib/supabase';
+import { ServiceCategory } from '../../navigation/types';
 import { theme } from '../../theme';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -26,235 +29,91 @@ interface SubCategory {
   icon?: keyof typeof Ionicons.glyphMap;
 }
 
-interface ServiceCategory {
-  id: string;
-  name: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  description: string;
-  image: any; // Local image require() returns any type
-  subcategories: SubCategory[];
-}
-
-const serviceCategories: ServiceCategory[] = [
-  {
-    id: '1',
-    name: 'Maid Services',
-    icon: 'home-outline',
-    color: theme.colors.primary.main,
-    description: 'Professional Cleaning',
-    image: require('../../../assets/Services_images/cleaning.png'),
-    subcategories: [
-      {
-        id: '1-1',
-        name: 'Deep Cleaning',
-        description: 'Complete home cleaning service',
-        price: 'From $250'
-      },
-      {
-        id: '1-2',
-        name: 'Add-ons',
-        description: 'Fridge, Oven, Patio Cleaning',
-        price: '$50 extra'
-      },
-      {
-        id: '1-3',
-        name: 'Swimming Pool',
-        description: 'Pool cleaning service',
-        price: '$500'
-      },
-      {
-        id: '1-4',
-        name: 'Garage',
-        description: '2 Car Garage cleaning',
-        price: '$75'
-      }
-    ]
-  },
-  {
-    id: '2',
-    name: 'Cooks & Chefs',
-    icon: 'restaurant-outline',
-    color: '#FF6B35',
-    description: 'Personal Chef Services',
-    image: require('../../../assets/Services_images/cooking.png'),
-    subcategories: [
-      {
-        id: '2-1',
-        name: 'Home Cooking',
-        description: 'Daily meals tailored to your taste & diet',
-        price: '$75/hour'
-      },
-      {
-        id: '2-2',
-        name: 'Grocery Shopping',
-        description: 'Shopping for ingredients',
-        price: '$60 + food cost'
-      },
-      {
-        id: '2-3',
-        name: 'Event Catering',
-        description: 'Elegant meals for special occasions',
-        price: 'Custom packages'
-      }
-    ]
-  },
-  {
-    id: '3',
-    name: 'Event Planning',
-    icon: 'calendar-outline',
-    color: '#6C5CE7',
-    description: 'Complete Event Management',
-    image: require('../../../assets/Services_images/event.png'),
-    subcategories: [
-      {
-        id: '3-1',
-        name: 'Corporate Events',
-        description: 'Conferences, Team-Building, Product Launches',
-        price: 'Custom packages'
-      },
-      {
-        id: '3-2',
-        name: 'Weddings & Engagements',
-        description: 'Full-scale planning & coordination',
-        price: 'Custom packages'
-      },
-      {
-        id: '3-3',
-        name: 'Social Celebrations',
-        description: 'Birthdays, Anniversaries, Baby Showers',
-        price: 'Custom packages'
-      }
-    ]
-  },
-  {
-    id: '4',
-    name: 'Travel Services',
-    icon: 'airplane-outline',
-    color: '#00B894',
-    description: 'Tour Guides & Travel',
-    image: require('../../../assets/Services_images/travel.png'),
-    subcategories: [
-      {
-        id: '4-1',
-        name: 'Personalized Local Tours',
-        description: 'Wine tours, adventure hikes, cultural spots',
-        price: 'Custom packages'
-      },
-      {
-        id: '4-2',
-        name: 'Luxury & Wellness Getaways',
-        description: 'Spa weekends, romantic retreats, cabin escapes',
-        price: 'Custom packages'
-      },
-      {
-        id: '4-3',
-        name: 'Group & Corporate Travel',
-        description: 'Team retreats, family reunions, friend trips',
-        price: 'Custom packages'
-      },
-      {
-        id: '4-4',
-        name: 'Airport Pickups & Day Trips',
-        description: 'Stress-free travel with curated stops',
-        price: 'Custom packages'
-      }
-    ]
-  },
-  {
-    id: '5',
-    name: 'Handymen',
-    icon: 'build-outline',
-    color: '#FDCB6E',
-    description: 'Home Improvements',
-    image: require('../../../assets/Services_images/handyman.png'),
-    subcategories: [
-      {
-        id: '5-1',
-        name: 'Repairs & Installs',
-        description: 'Fixtures, furniture assembly, shelves',
-        price: '$65 call out fee'
-      },
-      {
-        id: '5-2',
-        name: 'Electrical',
-        description: 'Switches, fans, lighting, smart home',
-        price: '$65 call out fee'
-      },
-      {
-        id: '5-3',
-        name: 'Plumbing',
-        description: 'Drains, toilet repairs, shower fittings',
-        price: '$65 call out fee'
-      },
-      {
-        id: '5-4',
-        name: 'Moving Services',
-        description: 'Local moves, packing & unpacking',
-        price: 'From $100/hour'
-      }
-    ]
-  },
-  {
-    id: '6',
-    name: 'Auto Services',
-    icon: 'car-outline',
-    color: '#E84393',
-    description: 'Repair & Detailing',
-    image: require('../../../assets/Services_images/auto.png'),
-    subcategories: [
-      {
-        id: '6-1',
-        name: 'Auto Repair',
-        description: 'Battery, brakes, oil changes, diagnostics',
-        price: '$150 call out fee'
-      },
-      {
-        id: '6-2',
-        name: 'Auto Detailing',
-        description: 'Interior cleaning, exterior wash, wax',
-        price: 'Custom quotes'
-      }
-    ]
-  },
-  {
-    id: '7',
-    name: 'Personal Care',
-    icon: 'flower-outline',
-    color: '#A29BFE',
-    description: 'Massage & Salon at Home',
-    image: require('../../../assets/Services_images/personalcare.png'),
-    subcategories: [
-      {
-        id: '7-1',
-        name: 'Massage Therapy',
-        description: 'Swedish, Deep Tissue, Prenatal & Relaxation',
-        price: '$60 call out fee + service'
-      },
-      {
-        id: '7-2',
-        name: 'Spa Services',
-        description: 'Facials, manicures, pedicures, body treatments',
-        price: 'From $50'
-      },
-      {
-        id: '7-3',
-        name: 'Salon Services',
-        description: 'Haircuts, styling, color, beard trims',
-        price: 'From $50'
-      }
-    ]
-  },
-];
-
 interface HomeScreenProps {
   navigation: any;
 }
-
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { user, profile, signOut } = useAuth();
   const { currentCity, loading: locationLoading, setCity, supportedCities } = useLocation();
   const [showCitySelector, setShowCitySelector] = useState(false);
+  const [services, setServices] = useState<ServiceCategory[]>(serviceCatalog);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch services from Supabase
+  useEffect(() => {
+    fetchServicesFromSupabase();
+  }, []);
+
+  const fetchServicesFromSupabase = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch services with their variants
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select(`
+          *,
+          service_variants (
+            id,
+            name,
+            slug,
+            description,
+            base_price,
+            default_duration
+          )
+        `)
+        .eq('is_active', true)
+        .order('created_at');
+
+      if (servicesError) {
+        console.error('Error fetching services:', servicesError);
+        // Fall back to static data
+        return;
+      }
+
+      // Transform Supabase data to match our ServiceCategory interface
+      const transformedServices: ServiceCategory[] = servicesData.map((service: any) => ({
+        id: service.slug,
+        name: service.name,
+        icon: service.icon as keyof typeof Ionicons.glyphMap,
+        color: service.color,
+        description: service.description,
+        image: getServiceImage(service.slug), // Helper function to get local images
+        callOutFee: service.call_out_fee > 0 ? `$${service.call_out_fee} call out fee` : 'No call-out fee',
+        minDuration: service.min_duration,
+        maxDuration: service.max_duration,
+        subcategories: service.service_variants.map((variant: any) => ({
+          id: variant.slug,
+          name: variant.name,
+          description: variant.description,
+          price: variant.base_price ? `From $${variant.base_price}` : 'Custom pricing',
+          duration: variant.default_duration,
+          addOns: [] // Would need to fetch separately if needed
+        }))
+      }));
+
+      setServices(transformedServices);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      // Keep using static data as fallback
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to map service slugs to local images
+  const getServiceImage = (slug: string) => {
+    const imageMap: { [key: string]: any } = {
+      'maid-services': require('../../../assets/Services_images/cleaning.png'),
+      'cooks-chefs': require('../../../assets/Services_images/cooking.png'),
+      'event-planning': require('../../../assets/Services_images/event.png'),
+      'travel-services': require('../../../assets/Services_images/travel.png'),
+      'handymen': require('../../../assets/Services_images/handyman.png'),
+      'auto-services': require('../../../assets/Services_images/auto.png'),
+      'personal-care': require('../../../assets/Services_images/personalcare.png'),
+    };
+    return imageMap[slug] || require('../../../assets/Services_images/cleaning.png');
+  };
 
   const handleServicePress = (service: ServiceCategory) => {
     // Navigate to service detail screen
@@ -383,7 +242,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </Typography>
       
       <View style={styles.categoriesGrid}>
-        {serviceCategories.map((service) => (
+        {services.map((service: ServiceCategory) => (
           <TouchableOpacity
             key={service.id}
             style={styles.categoryCard}
@@ -400,7 +259,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 <View style={styles.categoryOverlay}>
                   <View style={[styles.categoryIconContainer, { backgroundColor: service.color }]}>
                     <Ionicons
-                      name={service.icon}
+                      name={service.icon as any}
                       size={24}
                       color={theme.colors.neutral.white}
                     />

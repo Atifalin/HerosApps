@@ -13,6 +13,10 @@ import { PromosScreen } from '../screens/main/PromosScreen';
 import { AccountScreen } from '../screens/main/AccountScreen';
 import { SearchScreen } from '../screens/main/SearchScreen';
 import { ServiceDetailScreen } from '../screens/services/ServiceDetailScreen';
+import { BookingScreen } from '../screens/booking/BookingScreen';
+import { BookingConfirmScreen } from '../screens/booking/BookingConfirmScreen';
+import { BookingStatusScreen } from '../screens/booking/BookingStatusScreen';
+import { BookingHistoryScreen } from '../screens/account/BookingHistoryScreen';
 import { theme } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -141,6 +145,38 @@ export const AppNavigator: React.FC = () => {
             options={{
               headerShown: false,
               animation: 'slide_from_bottom'
+            }}
+          />
+          <Stack.Screen 
+            name="Booking" 
+            component={BookingScreen} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
+            }}
+          />
+          <Stack.Screen 
+            name="BookingConfirm" 
+            component={BookingConfirmScreen} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
+            }}
+          />
+          <Stack.Screen 
+            name="BookingStatus" 
+            component={BookingStatusScreen} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
+            }}
+          />
+          <Stack.Screen 
+            name="BookingHistory" 
+            component={BookingHistoryScreen} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
             }}
           />
         </Stack.Group>
