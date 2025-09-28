@@ -4,27 +4,30 @@ import { supabase } from '../lib/supabase';
 export const testSupabaseConnection = async () => {
   try {
     console.log('Testing Supabase connection...');
-    console.log('URL:', 'https://vttzuaerdwagipyocpha.supabase.co');
     
-    // Test basic connection
-    const { data, error } = await supabase
-      .from('_test_connection')
-      .select('*')
-      .limit(1);
+    // Use a more reliable method to test connection - just check if we can get the server timestamp
+    const { data, error } = await supabase.rpc('get_server_timestamp');
     
     if (error) {
-      console.log('Connection test error (expected for non-existent table):', error.message);
-      // This error is expected if the table doesn't exist, but it means we can connect
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
+      // If the RPC function doesn't exist, try a simpler approach
+      if (error.message.includes('does not exist')) {
+        // Try to get the current timestamp from Postgres
+        const { data: timestamp, error: timestampError } = await supabase.from('profiles').select('created_at').limit(1);
+        
+        if (timestampError) {
+          console.log('❌ Connection test failed:', timestampError.message);
+          return { success: false, error: timestampError };
+        }
+        
         console.log('✅ Connection successful - can reach Supabase');
         return { success: true, message: 'Connection successful' };
-      } else {
-        console.log('❌ Unexpected error:', error);
-        return { success: false, error };
       }
+      
+      console.log('❌ Connection test failed:', error.message);
+      return { success: false, error };
     }
     
-    console.log('✅ Connection successful:', data);
+    console.log('✅ Connection successful - server timestamp:', data);
     return { success: true, data };
   } catch (err) {
     console.log('❌ Connection failed:', err);

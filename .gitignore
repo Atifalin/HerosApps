@@ -32,8 +32,10 @@ output/
 *.tsbuildinfo
 
 # Logs
-logs
 *.log
+# Allow our logs directory but ignore system logs
+!logs/
+logs/system/
 
 # Env files
 .env

@@ -40,12 +40,13 @@ const ExpoSecureStoreAdapter = {
   },
 };
 
-// Initialize Supabase client with minimal configuration (no custom storage for now)
+// Initialize Supabase client with secure storage for session persistence
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,
-    persistSession: false, // Disable session persistence for testing
+    persistSession: true,
     detectSessionInUrl: false,
+    storage: ExpoSecureStoreAdapter,
   },
 });
 

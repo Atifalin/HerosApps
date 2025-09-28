@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { testDirectAuth } from '../../utils/testDirectAuth';
+import { Button, Input, Typography } from '../../components/ui';
+import { theme } from '../../theme';
 
 interface SignUpScreenProps {
   navigation: any;
@@ -60,7 +61,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         Alert.alert(
           'Success',
           'Account created successfully! Please check your email to verify your account.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          [{ text: 'OK', onPress: () => navigation.navigate('Auth') }]
         );
       }
     } catch (err) {
@@ -71,148 +72,116 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join HomeHeros and find your perfect service provider</Text>
-        </View>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.header}>
+            <Typography variant="h2" align="center" color="brand">
+              Create Account
+            </Typography>
+            <Typography variant="body1" align="center" color="secondary" style={styles.subtitle}>
+              Join HomeHeros and find your perfect service provider
+            </Typography>
+          </View>
 
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
+          <View style={styles.form}>
+            <Input
+              label="Email"
               placeholder="Enter your email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoCorrect={false}
+              autoComplete="email"
+              leftIcon="mail-outline"
             />
-          </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
+            <Input
+              label="Password"
               placeholder="Create a password (min 6 characters)"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              autoCapitalize="none"
+              autoComplete="new-password"
+              leftIcon="lock-closed-outline"
             />
-          </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
+            <Input
+              label="Confirm Password"
               placeholder="Confirm your password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
-              autoCapitalize="none"
+              autoComplete="new-password"
+              leftIcon="lock-closed-outline"
+            />
+
+            <Button
+              title={loading ? 'Creating Account...' : 'Create Account'}
+              onPress={handleSignUp}
+              loading={loading}
+              disabled={loading}
+              fullWidth
+              style={styles.signUpButton}
             />
           </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSignUp}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Creating Account...' : 'Create Account'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.linkText}>Sign In</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <View style={styles.footer}>
+            <Typography variant="body2" color="secondary">
+              Already have an account?{' '}
+              <Typography
+                variant="body2"
+                color="brand"
+                onPress={() => navigation.navigate('Auth')}
+              >
+                Sign In
+              </Typography>
+            </Typography>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background.primary,
   },
+  
+  keyboardView: {
+    flex: 1,
+  },
+  
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: theme.semanticSpacing.screenPadding,
   },
+  
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: theme.semanticSpacing.xl,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
+  
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
+    marginTop: theme.semanticSpacing.sm,
   },
+  
   form: {
-    marginBottom: 40,
+    marginBottom: theme.semanticSpacing.xl,
   },
-  inputContainer: {
-    marginBottom: 20,
+  
+  signUpButton: {
+    marginTop: theme.semanticSpacing.md,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  buttonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  linkText: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '600',
+    marginTop: theme.semanticSpacing.lg,
   },
 });

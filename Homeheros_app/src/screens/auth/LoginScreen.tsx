@@ -104,7 +104,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+          <TouchableOpacity onPress={() => navigation.navigate('AuthSignUp')}>
             <Text style={styles.linkText}>Sign Up</Text>
           </TouchableOpacity>
         </View>
