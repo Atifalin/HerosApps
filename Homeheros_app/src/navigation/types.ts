@@ -42,6 +42,7 @@ export interface Hero {
   isAvailable: boolean;
   distance?: number;
   priceMultiplier?: number;
+  contractor_id?: string; // Added for booking creation
 }
 
 export interface BookingRequest {

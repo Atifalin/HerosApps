@@ -2,11 +2,9 @@
 
 ## Overview
 
-HomeHeros is a platform connecting customers with service providers ("Heros") for various home services. The platform follows a B2B2C model where HomeHeros signs contracts with Contractors who manage their own service providers (Heros). Customers can browse, select, and book specific Heros based on their profiles, ratings, and availability.
+# HomeHeros Project Repository
 
-## Key Differentiator
-
-"Pick your Hero" - Customers can browse and select specific service providers rather than being auto-matched, while maintaining B2B control via Contractor agreements (pricing floors, SLAs, coverage).
+This repository contains multiple applications and components for the HomeHeros platform, which connects homeowners with service providers ("heroes") for various home services like cleaning, repairs, and maintenance.
 
 ## Repository Structure
 

@@ -26,10 +26,28 @@ export interface PaymentResult {
   error?: string;
 }
 
-class MockPaymentService {
+/**
+ * PaymentServiceInterface defines the contract that any payment provider must implement.
+ * This makes it easy to swap between mock payments and real Stripe integration.
+ */
+export interface PaymentServiceInterface {
+  getPaymentMethods(userId: string): Promise<PaymentMethod[]>;
+  addPaymentMethod(userId: string, cardDetails: any): Promise<PaymentResult>;
+  createPaymentIntent(amount: number, currency: string, paymentMethodId: string, bookingId: string): Promise<PaymentResult>;
+  capturePayment(paymentIntentId: string): Promise<PaymentResult>;
+  refundPayment(paymentIntentId: string, amount?: number): Promise<PaymentResult>;
+  initializeStripe?(): Promise<void>;
+}
+
+/**
+ * Mock implementation of the PaymentService that simulates payment processing
+ * without requiring actual payment infrastructure.
+ */
+class MockPaymentService implements PaymentServiceInterface {
+  // Test cards that match Stripe's test cards for easy migration
   private mockPaymentMethods: PaymentMethod[] = [
     {
-      id: 'pm_mock_visa',
+      id: 'pm_mock_visa_success',
       type: 'card',
       last4: '4242',
       brand: 'visa',
@@ -38,12 +56,35 @@ class MockPaymentService {
       isDefault: true
     },
     {
-      id: 'pm_mock_mastercard',
+      id: 'pm_mock_visa_declined',
       type: 'card',
-      last4: '5555',
-      brand: 'mastercard',
+      last4: '0341',
+      brand: 'visa',
       expiryMonth: 8,
       expiryYear: 2027,
+      isDefault: false
+    },
+    {
+      id: 'pm_mock_mastercard',
+      type: 'card',
+      last4: '5556',
+      brand: 'mastercard',
+      expiryMonth: 10,
+      expiryYear: 2026,
+      isDefault: false
+    },
+    {
+      id: 'pm_mock_amex',
+      type: 'card',
+      last4: '0005',
+      brand: 'amex',
+      expiryMonth: 4,
+      expiryYear: 2025,
+      isDefault: false
+    },
+    {
+      id: 'pm_mock_apple_pay',
+      type: 'apple_pay',
       isDefault: false
     }
   ];
@@ -115,8 +156,10 @@ class MockPaymentService {
   ): Promise<PaymentResult> {
     await this.delay(2000);
 
-    // Mock payment processing
-    const shouldFail = Math.random() < 0.05; // 5% failure rate for testing
+    // Simulate specific card behaviors for testing
+    // This matches Stripe's test card behavior for easy migration later
+    const shouldFail = paymentMethodId === 'pm_mock_visa_declined' || 
+                      (paymentMethodId !== 'pm_mock_visa_success' && Math.random() < 0.05);
 
     if (shouldFail) {
       return {
@@ -140,11 +183,11 @@ class MockPaymentService {
         .from('payments')
         .insert({
           booking_id: bookingId,
-          payment_method: 'mock_card',
-          amount: amount / 100, // Convert cents to dollars
+          stripe_pi: paymentIntent.id, // Use stripe_pi instead of payment_intent_id
+          amount_cents: amount, // Use amount_cents instead of amount
+          currency: currency.toUpperCase(),
           status: 'authorized',
-          payment_intent_id: paymentIntent.id,
-          mock_card_last4: this.getPaymentMethodById(paymentMethodId)?.last4
+          // Additional fields can be added here if needed
         });
 
       if (error) {
@@ -167,8 +210,11 @@ class MockPaymentService {
     try {
       const { error } = await supabase
         .from('payments')
-        .update({ status: 'captured' })
-        .eq('payment_intent_id', paymentIntentId);
+        .update({ 
+          status: 'captured',
+          captured_at: new Date().toISOString()
+        })
+        .eq('stripe_pi', paymentIntentId);
 
       if (error) {
         return {
@@ -206,8 +252,12 @@ class MockPaymentService {
     try {
       const { error } = await supabase
         .from('payments')
-        .update({ status: 'refunded' })
-        .eq('payment_intent_id', paymentIntentId);
+        .update({ 
+          status: 'refunded',
+          refunded_cents: amount || 0,
+          refund_reason: 'Customer requested refund'
+        })
+        .eq('stripe_pi', paymentIntentId);
 
       if (error) {
         return {
@@ -260,9 +310,20 @@ class MockPaymentService {
 }
 
 // Export singleton instance
-export const paymentService = new MockPaymentService();
+export const paymentService: PaymentServiceInterface = new MockPaymentService();
 
 // Types for easy migration to Stripe
 export type StripePaymentMethod = PaymentMethod;
 export type StripePaymentIntent = PaymentIntent;
 export type StripePaymentResult = PaymentResult;
+
+/**
+ * When ready to integrate with Stripe, create a new class that implements PaymentServiceInterface
+ * and replace the exported instance. Example:
+ * 
+ * class StripePaymentService implements PaymentServiceInterface {
+ *   // Implement all required methods using Stripe SDK
+ * }
+ * 
+ * export const paymentService: PaymentServiceInterface = new StripePaymentService();
+ */

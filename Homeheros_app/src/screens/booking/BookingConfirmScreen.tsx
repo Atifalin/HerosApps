@@ -62,11 +62,12 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
         name: hero.name,
         rating: parseFloat(hero.rating) || 0,
         reviewCount: hero.review_count || 0,
-        avatar: hero.avatar_url,
-        skills: [], // Would need to fetch from hero_services if needed
+        avatar: hero.photo_url,
+        skills: hero.skills || [], 
         isAvailable: hero.is_active,
         distance: Math.random() * 5 + 1, // Mock distance for now
-        priceMultiplier: 1.0 + (Math.random() * 0.2 - 0.1) // Random multiplier between 0.9-1.1
+        priceMultiplier: 1.0 + (Math.random() * 0.2 - 0.1), // Random multiplier between 0.9-1.1
+        contractor_id: hero.contractor_id // Add contractor_id from database
       }));
 
       setAvailableHeroes(transformedHeroes);
@@ -135,15 +136,20 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
       // 1. Create booking first to get proper booking ID
       const bookingData = {
         customer_id: user?.id || '550e8400-e29b-41d4-a716-446655440000', // Use test user if no authenticated user
+        contractor_id: selectedHero.contractor_id || '550e8400-e29b-41d4-a716-446655440000', // Use hero's contractor or default
         service_id: bookingRequest.serviceId,
         service_variant_id: bookingRequest.subcategoryId,
         service_name: bookingRequest.serviceName, // Store service name for display
         variant_name: bookingRequest.variantName, // Store variant name for display
         hero_id: selectedHero.id,
         status: 'requested',
+        scheduled_at: new Date().toISOString(), // Use current date as fallback
         scheduled_date: new Date(bookingRequest.scheduledDate).toISOString().split('T')[0],
         scheduled_time: bookingRequest.scheduledTime,
         duration: bookingRequest.duration,
+        duration_min: bookingRequest.duration, // Also set duration_min
+        price_cents: Math.round(finalPricing.total * 100), // Convert to cents
+        currency: 'CAD',
         address_street: bookingRequest.address.street,
         address_city: bookingRequest.address.city,
         address_postal_code: bookingRequest.address.postalCode,
@@ -188,17 +194,31 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
         .eq('payment_intent_id', paymentResult.paymentIntent?.id);
 
       // 4. Create initial status history
-      await supabase
-        .from('booking_status_history')
-        .insert({
-          booking_id: booking.id,
-          status: 'requested',
-          notes: 'Booking created and payment authorized',
-          created_by: user?.id
-        });
+      try {
+        await supabase
+          .from('booking_status_history')
+          .insert({
+            booking_id: booking.id,
+            status: 'requested',
+            notes: 'Booking created and payment authorized'
+            // created_by is now nullable
+          });
+      } catch (historyError) {
+        console.error('Error creating booking history:', historyError);
+        // Continue even if history creation fails
+      }
 
       // Navigate to booking status screen
-      navigation.navigate('BookingStatus', { bookingId: booking.id });
+      console.log('Navigating to BookingStatus with ID:', booking.id);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }]
+      });
+      
+      // Use a slight delay to ensure navigation completes before showing the booking status
+      setTimeout(() => {
+        navigation.navigate('BookingStatus', { bookingId: booking.id });
+      }, 500);
 
     } catch (error) {
       console.error('Booking confirmation error:', error);
@@ -209,12 +229,17 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-CA', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    try {
+      return date.toLocaleDateString('en-CA', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return 'Date unavailable';
+    }
   };
 
   const renderHeroCard = (hero: Hero) => (
@@ -336,7 +361,7 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
           <View style={styles.summaryRow}>
             <Typography variant="body2" color="secondary">Date & Time</Typography>
             <Typography variant="body1" weight="medium">
-              {formatDate(new Date(bookingRequest.scheduledDate))} at {bookingRequest.scheduledTime}
+              {bookingRequest.scheduledDate ? formatDate(new Date(bookingRequest.scheduledDate)) : 'Selected date'} at {bookingRequest.scheduledTime || 'selected time'}
             </Typography>
           </View>
           

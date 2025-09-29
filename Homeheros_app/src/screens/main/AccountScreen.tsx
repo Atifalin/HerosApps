@@ -52,19 +52,30 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
     try {
       setLoadingBookings(true);
       
-      // Get count of active bookings (not completed or cancelled)
-      const { count, error } = await supabase
-        .from('bookings')
-        .select('id', { count: 'exact', head: true })
-        .eq('customer_id', user.id)
-        .not('status', 'in', '("completed","cancelled")');
+      // Get count of active bookings using a simpler query
+      console.log('Fetching active bookings for user:', user.id);
       
-      if (error) {
-        console.error('Error fetching active bookings count:', error);
+      // First, try a simple query to get all bookings for this user
+      const { data, error: fetchError } = await supabase
+        .from('bookings')
+        .select('id, status')
+        .eq('customer_id', user.id);
+      
+      if (fetchError) {
+        console.error('Error fetching bookings:', fetchError);
         return;
       }
       
-      setActiveBookingsCount(count || 0);
+      console.log('Total bookings found:', data?.length || 0);
+      
+      // Filter active bookings client-side
+      const activeBookings = data?.filter(booking => 
+        booking.status !== 'completed' && 
+        booking.status !== 'cancelled'
+      ) || [];
+      
+      console.log('Active bookings count:', activeBookings.length);
+      setActiveBookingsCount(activeBookings.length);
     } catch (error) {
       console.error('Error in fetchActiveBookingsCount:', error);
     } finally {
@@ -140,7 +151,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
       icon: 'calendar-outline',
       action: handleBookingHistory,
       showChevron: true,
-      badge: activeBookingsCount > 0 ? `${activeBookingsCount}` : undefined,
+      badge: activeBookingsCount > 0 ? `${activeBookingsCount}` : undefined, // Will show badge only if count > 0
     },
     {
       id: 'addresses',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ComponentType } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -133,7 +133,7 @@ export const AppNavigator: React.FC = () => {
         <Stack.Group>
           <Stack.Screen 
             name="ServiceDetail" 
-            component={ServiceDetailScreen} 
+            component={ServiceDetailScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'
@@ -149,7 +149,7 @@ export const AppNavigator: React.FC = () => {
           />
           <Stack.Screen 
             name="Booking" 
-            component={BookingScreen} 
+            component={BookingScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'
@@ -157,7 +157,7 @@ export const AppNavigator: React.FC = () => {
           />
           <Stack.Screen 
             name="BookingConfirm" 
-            component={BookingConfirmScreen} 
+            component={BookingConfirmScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'
@@ -165,7 +165,7 @@ export const AppNavigator: React.FC = () => {
           />
           <Stack.Screen 
             name="BookingStatus" 
-            component={BookingStatusScreen} 
+            component={BookingStatusScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'
@@ -173,7 +173,7 @@ export const AppNavigator: React.FC = () => {
           />
           <Stack.Screen 
             name="BookingHistory" 
-            component={BookingHistoryScreen} 
+            component={BookingHistoryScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'

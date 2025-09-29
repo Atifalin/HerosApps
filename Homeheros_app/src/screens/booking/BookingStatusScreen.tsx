@@ -55,12 +55,13 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
         .from('bookings')
         .select(`
           *,
-          heroes!fk_bookings_hero (
+          heros:fk_bookings_hero (
             id,
             name,
-            rating,
-            review_count,
-            phone
+            rating_avg,
+            rating_count,
+            skills,
+            contractor_id
           ),
           services (id, name),
           service_variants (id, name)
@@ -95,13 +96,14 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
           specialInstructions: data.special_instructions,
           heroId: data.hero_id,
         },
-        hero: data.heroes ? {
-          id: data.heroes.id,
-          name: data.heroes.name,
-          rating: data.heroes.rating,
-          reviewCount: data.heroes.review_count,
-          skills: [],
+        hero: data.heros ? {
+          id: data.heros.id,
+          name: data.heros.name,
+          rating: parseFloat(data.heros.rating_avg) || 0,
+          reviewCount: data.heros.rating_count || 0,
+          skills: data.heros.skills || [],
           isAvailable: true,
+          contractor_id: data.heros.contractor_id
         } : undefined,
         pricing: {
           basePrice: data.base_price,

@@ -20,6 +20,21 @@ interface BookingHistoryScreenProps {
   navigation: any;
 }
 
+interface DatabaseBooking {
+  id: string;
+  status: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  service_name?: string;
+  variant_name?: string;
+  hero_id?: string;
+  total_amount?: number;
+  created_at: string;
+  services?: { id: string; name: string };
+  service_variants?: { id: string; name: string };
+  heros?: { id: string; name: string };
+}
+
 interface Booking {
   id: string;
   status: string;
@@ -52,16 +67,31 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
       }
 
       // Fetch bookings with proper foreign key relationships
+      console.log('Fetching booking history for user:', user.id);
+      
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          *,
+          id,
+          status,
+          scheduled_date,
+          scheduled_time,
+          service_name,
+          variant_name,
+          total_amount,
+          created_at,
+          hero_id,
           services (id, name),
           service_variants (id, name),
-          heroes (id, name)
+          heros:hero_id (id, name)
         `)
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false });
+      
+      console.log('Booking history query completed');
+      if (data) {
+        console.log('Bookings found:', data.length);
+      }
         
       if (error) {
         console.error('Error fetching bookings:', error);
@@ -70,27 +100,49 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
       }
       
       // Transform the data with proper relationships
-      const bookingsWithDetails = data.map((booking) => {
+      const bookingsWithDetails = data?.map((booking: any) => {
+        // Use existing service_name/variant_name if available, otherwise try to get from relations
+        const serviceName = booking.service_name || 
+          (booking.services && typeof booking.services === 'object' && 'name' in booking.services ? 
+            booking.services.name : 'Unknown Service');
+            
+        const variantName = booking.variant_name || 
+          (booking.service_variants && typeof booking.service_variants === 'object' && 'name' in booking.service_variants ? 
+            booking.service_variants.name : 'Unknown Variant');
+            
+        const heroName = booking.heros && typeof booking.heros === 'object' && 'name' in booking.heros ? 
+          booking.heros.name : null;
+          
         return {
           ...booking,
-          service_name: booking.services?.name || 'Unknown Service',
-          variant_name: booking.service_variants?.name || 'Unknown Variant',
-          hero_name: booking.heroes?.name || null
+          service_name: serviceName,
+          variant_name: variantName,
+          hero_name: heroName
         };
-      });
+      }) || [];
 
       // Transform the data for display
-      const transformedBookings: Booking[] = bookingsWithDetails.map((booking: any) => ({
-        id: booking.id,
-        status: booking.status,
-        scheduled_date: booking.scheduled_date,
-        scheduled_time: booking.scheduled_time,
-        service_name: booking.service_name,
-        variant_name: booking.variant_name,
-        hero_name: booking.hero_name,
-        total_amount: booking.total_amount,
-        created_at: booking.created_at,
-      }));
+      const transformedBookings: Booking[] = bookingsWithDetails.map((booking: any) => {
+        // Make sure total_amount is a number or default to 0
+        let totalAmount = 0;
+        if (booking.total_amount !== null && booking.total_amount !== undefined) {
+          totalAmount = typeof booking.total_amount === 'number' ? 
+            booking.total_amount : 
+            parseFloat(booking.total_amount) || 0;
+        }
+        
+        return {
+          id: booking.id,
+          status: booking.status,
+          scheduled_date: booking.scheduled_date,
+          scheduled_time: booking.scheduled_time,
+          service_name: booking.service_name,
+          variant_name: booking.variant_name,
+          hero_name: booking.hero_name,
+          total_amount: totalAmount,
+          created_at: booking.created_at,
+        };
+      });
 
       setBookings(transformedBookings);
     } catch (error) {
@@ -129,13 +181,20 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Date unavailable';
+    
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return 'Date unavailable';
+    }
   };
 
   const renderBookingCard = (booking: Booking) => (
@@ -161,7 +220,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={16} color={theme.colors.text.secondary} />
             <Typography variant="body2" style={styles.infoText}>
-              {formatDate(booking.scheduled_date)} at {booking.scheduled_time}
+              {formatDate(booking.scheduled_date)} {booking.scheduled_time ? `at ${booking.scheduled_time}` : ''}
             </Typography>
           </View>
 
@@ -183,7 +242,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
 
           <View style={styles.priceRow}>
             <Typography variant="body1" weight="semibold">
-              ${booking.total_amount.toFixed(2)}
+              ${booking.total_amount ? booking.total_amount.toFixed(2) : '0.00'}
             </Typography>
           </View>
         </View>
