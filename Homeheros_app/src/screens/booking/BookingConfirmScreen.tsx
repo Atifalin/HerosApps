@@ -130,19 +130,59 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
       return;
     }
 
+    if (!user?.id) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // 1. Create booking first to get proper booking ID
+      // 1. Create or get address first
+      let addressId: string;
+      
+      // Check if using a saved address or need to create new one
+      if (bookingRequest.addressId) {
+        // Using existing saved address
+        addressId = bookingRequest.addressId;
+      } else {
+        // Create new address from booking request
+        const { data: newAddress, error: addressError } = await supabase
+          .from('addresses')
+          .insert({
+            user_id: user.id,
+            street: bookingRequest.address.street,
+            line1: bookingRequest.address.street,
+            city: bookingRequest.address.city,
+            province: bookingRequest.address.province || 'ON',
+            postal_code: bookingRequest.address.postalCode,
+            label: bookingRequest.address.label || null,
+            is_default: false,
+          })
+          .select()
+          .single();
+
+        if (addressError) {
+          console.error('Address creation error:', addressError);
+          Alert.alert('Error', 'Failed to save address. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        addressId = newAddress.id;
+      }
+
+      // 2. Create booking with proper IDs
       const bookingData = {
-        customer_id: user?.id || 'd4285f89-01eb-42d2-a848-dbc32c7a767b',
+        customer_id: user.id,
         contractor_id: selectedHero.contractor_id || '550e8400-e29b-41d4-a716-446655440000',
-        address_id: 'df1059b3-ae89-4a32-82f3-7a31c976653f', // Use existing address for now
+        address_id: addressId,
         service_id: bookingRequest.serviceId,
         service_variant_id: bookingRequest.subcategoryId,
         service_name: bookingRequest.serviceName,
         variant_name: bookingRequest.variantName,
         hero_id: selectedHero.id,
+        customer_phone: bookingRequest.phoneNumber,
         status: 'requested',
         scheduled_at: new Date(bookingRequest.scheduledDate).toISOString(),
         duration_min: bookingRequest.duration,

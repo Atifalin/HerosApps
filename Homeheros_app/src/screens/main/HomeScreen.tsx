@@ -55,7 +55,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         .from('addresses')
         .select('*')
         .eq('user_id', user.id)
-        .eq('city', currentCity)
+        // Don't filter by city - show any recent address
         .order('created_at', { ascending: false })
         .limit(1)
         .single();

@@ -57,11 +57,15 @@ export interface BookingRequest {
     street: string;
     city: string;
     postalCode: string;
+    province?: string;
+    label?: string;
     coordinates?: {
       latitude: number;
       longitude: number;
     };
   };
+  addressId?: string; // If using a saved address
+  phoneNumber: string; // Customer phone number
   addOns: string[]; // AddOn IDs
   specialInstructions?: string;
   heroId?: string; // Optional - for hero selection

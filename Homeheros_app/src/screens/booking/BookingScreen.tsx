@@ -267,7 +267,10 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
         street: address.street,
         city: address.city,
         postalCode: address.postalCode,
+        province: address.province,
+        label: address.label,
       },
+      addressId: selectedAddressId || undefined, // Pass saved address ID if selected
       phoneNumber: phoneNumber.trim(),
       addOns: selectedAddOns,
       specialInstructions: specialInstructions.trim() || undefined,
