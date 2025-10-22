@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { Typography, Card, Button } from '../../components/ui';
 import { theme } from '../../theme';
 import { useLocation } from '../../contexts/LocationContext';
@@ -59,11 +61,34 @@ interface PromosScreenProps {
 
 export const PromosScreen: React.FC<PromosScreenProps> = ({ navigation }) => {
   const { currentCity } = useLocation();
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  const handleCopyCode = (code: string) => {
-    // In a real app, this would copy to clipboard
-    console.log(`Copied code: ${code}`);
-    // Show toast or feedback
+  const handleCopyCode = async (code: string) => {
+    try {
+      await Clipboard.setStringAsync(code);
+      setCopiedCode(code);
+      Alert.alert('Copied!', `Promo code "${code}" copied to clipboard`);
+      
+      // Reset after 2 seconds
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      Alert.alert('Error', 'Failed to copy code');
+    }
+  };
+
+  const handleApplyPromo = (promo: PromoItem) => {
+    Alert.alert(
+      'Apply Promo Code',
+      `Would you like to use "${promo.code}" for your next booking?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Book Now',
+          onPress: () => navigation.navigate('HomeTab'),
+        },
+      ]
+    );
   };
 
   return (
@@ -100,12 +125,21 @@ export const PromosScreen: React.FC<PromosScreenProps> = ({ navigation }) => {
               <Typography variant="body2" color="secondary" style={styles.featuredDescription}>
                 Use code WELCOME25 on your first booking with any service provider
               </Typography>
-              <Button 
-                title="Copy Code" 
-                size="sm"
-                onPress={() => handleCopyCode('WELCOME25')}
-                style={styles.copyButton}
-              />
+              <View style={styles.featuredButtons}>
+                <Button 
+                  title={copiedCode === 'WELCOME25' ? 'Copied!' : 'Copy Code'}
+                  size="sm"
+                  variant={copiedCode === 'WELCOME25' ? 'outline' : 'primary'}
+                  onPress={() => handleCopyCode('WELCOME25')}
+                  style={styles.copyButton}
+                />
+                <Button 
+                  title="Use Now" 
+                  size="sm"
+                  onPress={() => handleApplyPromo(promos[0])}
+                  style={styles.useButton}
+                />
+              </View>
             </View>
             <View style={styles.featuredImageContainer}>
               <View style={styles.discountBadge}>
@@ -159,8 +193,19 @@ export const PromosScreen: React.FC<PromosScreenProps> = ({ navigation }) => {
                 style={styles.copyIcon}
                 onPress={() => handleCopyCode(promo.code)}
               >
-                <Ionicons name="copy-outline" size={20} color={theme.colors.primary.main} />
+                <Ionicons 
+                  name={copiedCode === promo.code ? 'checkmark-circle' : 'copy-outline'} 
+                  size={20} 
+                  color={copiedCode === promo.code ? theme.colors.status.success : theme.colors.primary.main} 
+                />
               </TouchableOpacity>
+              <Button
+                title="Apply"
+                size="sm"
+                variant="outline"
+                onPress={() => handleApplyPromo(promo)}
+                style={styles.applyButton}
+              />
             </View>
             
             {promo.isNew && (
@@ -252,8 +297,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  featuredButtons: {
+    flexDirection: 'row',
+    gap: theme.semanticSpacing.sm,
+  },
   copyButton: {
-    alignSelf: 'flex-start',
+    flex: 1,
+  },
+  useButton: {
+    flex: 1,
+  },
+  applyButton: {
+    marginLeft: theme.semanticSpacing.xs,
   },
   sectionHeader: {
     marginBottom: theme.semanticSpacing.md,
@@ -282,7 +337,7 @@ const styles = StyleSheet.create({
   promoFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: theme.semanticSpacing.xs,
+    marginTop: theme.semanticSpacing.sm,
   },
   codeContainer: {
     backgroundColor: theme.colors.background.secondary,
