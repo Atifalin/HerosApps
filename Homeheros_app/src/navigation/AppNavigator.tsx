@@ -18,6 +18,7 @@ import { BookingConfirmScreen } from '../screens/booking/BookingConfirmScreen';
 import { BookingStatusScreen } from '../screens/booking/BookingStatusScreen';
 import { BookingHistoryScreen } from '../screens/account/BookingHistoryScreen';
 import { SavedAddressesScreen } from '../screens/account/SavedAddressesScreen';
+import { ProfileScreen } from '../screens/account/ProfileScreen';
 import { theme } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -188,6 +189,14 @@ export const AppNavigator: React.FC = () => {
           <Stack.Screen 
             name="SavedAddresses" 
             component={SavedAddressesScreen as React.ComponentType<any>} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
+            }}
+          />
+          <Stack.Screen 
+            name="Profile" 
+            component={ProfileScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'

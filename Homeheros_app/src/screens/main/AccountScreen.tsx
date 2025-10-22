@@ -100,9 +100,9 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
     );
   };
 
-  const handleEditProfile = () => {
-    // Navigate to profile edit screen
-    console.log('Edit profile');
+  const handleProfile = () => {
+    // Navigate to profile screen
+    navigation.navigate('Profile');
   };
 
   const handlePaymentMethods = () => {
@@ -135,7 +135,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
       id: 'profile',
       title: 'Edit Profile',
       icon: 'person-outline',
-      action: handleEditProfile,
+      action: handleProfile,
       showChevron: true,
     },
     {

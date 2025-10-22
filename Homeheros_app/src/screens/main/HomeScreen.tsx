@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -181,13 +182,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   const handleProfilePress = () => {
-    // Navigate to profile screen
-    console.log('Profile pressed');
+    // Navigate to profile
+    navigation.navigate('Profile');
   };
 
   const handleNotificationPress = () => {
-    // Navigate to notifications
-    console.log('Notifications pressed');
+    // Navigate to notifications - TODO: Implement later
+    Alert.alert('Coming Soon', 'Notifications feature will be available soon!');
   };
 
   const renderHeader = () => (
@@ -371,6 +372,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     </View>
   );
 
+  const handleBookAgain = () => {
+    navigation.navigate('BookingHistory');
+  };
+
+  const handleSchedule = () => {
+    // Navigate to first service for scheduling
+    if (services.length > 0) {
+      navigation.navigate('ServiceDetail', { service: services[0] });
+    }
+  };
+
+  const handleOffers = () => {
+    navigation.navigate('PromosTab');
+  };
+
   const renderQuickActions = () => (
     <View style={styles.quickActionsContainer}>
       <Typography variant="h5" weight="semibold" style={styles.sectionTitle}>
@@ -378,50 +394,56 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </Typography>
       
       <View style={styles.quickActionsRow}>
-        <Card variant="outlined" padding="md" style={styles.quickActionCard}>
-          <Ionicons
-            name="time-outline"
-            size={24}
-            color={theme.colors.primary.main}
-            style={styles.quickActionIcon}
-          />
-          <Typography variant="body2" weight="medium">
-            Book Again
-          </Typography>
-          <Typography variant="caption" color="secondary">
-            Repeat last service
-          </Typography>
-        </Card>
+        <TouchableOpacity onPress={handleBookAgain}>
+          <Card variant="outlined" padding="md" style={styles.quickActionCard}>
+            <Ionicons
+              name="time-outline"
+              size={24}
+              color={theme.colors.primary.main}
+              style={styles.quickActionIcon}
+            />
+            <Typography variant="body2" weight="medium">
+              Book Again
+            </Typography>
+            <Typography variant="caption" color="secondary">
+              Repeat last service
+            </Typography>
+          </Card>
+        </TouchableOpacity>
         
-        <Card variant="outlined" padding="md" style={styles.quickActionCard}>
-          <Ionicons
-            name="calendar-outline"
-            size={24}
-            color={theme.colors.primary.main}
-            style={styles.quickActionIcon}
-          />
-          <Typography variant="body2" weight="medium">
-            Schedule
-          </Typography>
-          <Typography variant="caption" color="secondary">
-            Plan ahead
-          </Typography>
-        </Card>
+        <TouchableOpacity onPress={handleSchedule}>
+          <Card variant="outlined" padding="md" style={styles.quickActionCard}>
+            <Ionicons
+              name="calendar-outline"
+              size={24}
+              color={theme.colors.primary.main}
+              style={styles.quickActionIcon}
+            />
+            <Typography variant="body2" weight="medium">
+              Schedule
+            </Typography>
+            <Typography variant="caption" color="secondary">
+              Plan ahead
+            </Typography>
+          </Card>
+        </TouchableOpacity>
         
-        <Card variant="outlined" padding="md" style={styles.quickActionCard}>
-          <Ionicons
-            name="gift-outline"
-            size={24}
-            color={theme.colors.primary.main}
-            style={styles.quickActionIcon}
-          />
-          <Typography variant="body2" weight="medium">
-            Offers
-          </Typography>
-          <Typography variant="caption" color="secondary">
-            Special deals
-          </Typography>
-        </Card>
+        <TouchableOpacity onPress={handleOffers}>
+          <Card variant="outlined" padding="md" style={styles.quickActionCard}>
+            <Ionicons
+              name="gift-outline"
+              size={24}
+              color={theme.colors.primary.main}
+              style={styles.quickActionIcon}
+            />
+            <Typography variant="body2" weight="medium">
+              Offers
+            </Typography>
+            <Typography variant="caption" color="secondary">
+              Special deals
+            </Typography>
+          </Card>
+        </TouchableOpacity>
       </View>
     </View>
   );
