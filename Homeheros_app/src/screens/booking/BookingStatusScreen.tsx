@@ -50,7 +50,7 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
 
   const loadBookingDetails = async () => {
     try {
-      // Fetch booking with hero details
+      // Fetch booking with hero details, address, and add-ons
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -64,10 +64,32 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
             contractor_id
           ),
           services (id, title),
-          service_variants (id, name)
+          service_variants (id, name),
+          addresses (
+            id,
+            street,
+            line1,
+            city,
+            province,
+            postal_code,
+            label
+          )
         `)
         .eq('id', bookingId)
         .single();
+
+      // Fetch add-ons separately
+      const { data: addOnsData } = await supabase
+        .from('booking_add_ons')
+        .select(`
+          add_on_id,
+          add_ons (
+            id,
+            name,
+            price
+          )
+        `)
+        .eq('booking_id', bookingId);
 
       if (error) {
         console.error('Error loading booking:', error);
@@ -85,17 +107,25 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
           serviceName: data.services?.title || data.service_name || 'Unknown Service',
           variantName: data.service_variants?.name || data.variant_name || 'Unknown Variant',
           scheduledDate: data.scheduled_at,
-          scheduledTime: data.scheduled_at,
+          scheduledTime: new Date(data.scheduled_at).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' }),
           duration: data.duration_min,
           address: {
-            street: '',
-            city: '',
-            postalCode: '',
+            street: data.addresses?.street || data.addresses?.line1 || 'Address not available',
+            city: data.addresses?.city || '',
+            postalCode: data.addresses?.postal_code || '',
+            province: data.addresses?.province,
+            label: data.addresses?.label,
           },
-          addOns: [],
+          phoneNumber: data.customer_phone || '',
+          addOns: addOnsData?.map(ao => ao.add_on_id) || [],
           specialInstructions: data.notes,
           heroId: data.hero_id,
         },
+        addOnDetails: addOnsData?.map((ao: any) => ({
+          id: ao.add_ons?.id || ao.add_on_id,
+          name: ao.add_ons?.name || 'Unknown Add-on',
+          price: parseFloat(ao.add_ons?.price || 0),
+        })) || [],
         hero: data.heros ? {
           id: data.heros.id,
           name: data.heros.name,
@@ -417,13 +447,50 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
           
           <View style={styles.detailRow}>
             <Typography variant="body2" color="secondary">Address</Typography>
-            <Typography variant="body1">
-              {booking.request.address.street}, {booking.request.address.city}
-            </Typography>
+            <View style={styles.addressDetails}>
+              {booking.request.address.label && (
+                <Typography variant="body2" weight="medium">
+                  {booking.request.address.label}
+                </Typography>
+              )}
+              <Typography variant="body1">
+                {booking.request.address.street}
+              </Typography>
+              <Typography variant="body2" color="secondary">
+                {booking.request.address.city}, {booking.request.address.province || 'ON'} {booking.request.address.postalCode}
+              </Typography>
+            </View>
           </View>
+
+          {booking.request.phoneNumber && (
+            <View style={styles.detailRow}>
+              <Typography variant="body2" color="secondary">Contact Phone</Typography>
+              <TouchableOpacity onPress={() => Linking.openURL(`tel:${booking.request.phoneNumber}`)}>
+                <Typography variant="body1" color="brand" weight="medium">
+                  {booking.request.phoneNumber}
+                </Typography>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {booking.addOnDetails && booking.addOnDetails.length > 0 && (
+            <View style={styles.addOnsSection}>
+              <Typography variant="body2" color="secondary" style={styles.addOnsTitle}>
+                Add-ons
+              </Typography>
+              {booking.addOnDetails.map((addOn: any) => (
+                <View key={addOn.id} style={styles.addOnRow}>
+                  <Typography variant="body2">{addOn.name}</Typography>
+                  <Typography variant="body2" weight="medium">
+                    +${addOn.price.toFixed(2)}
+                  </Typography>
+                </View>
+              ))}
+            </View>
+          )}
           
-          <View style={styles.detailRow}>
-            <Typography variant="body2" color="secondary">Total Amount</Typography>
+          <View style={[styles.detailRow, styles.totalRow]}>
+            <Typography variant="h6" weight="semibold">Total Amount</Typography>
             <Typography variant="h6" weight="semibold" color="brand">
               ${booking.pricing.total.toFixed(2)}
             </Typography>
@@ -574,6 +641,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingVertical: theme.semanticSpacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.light,
+    paddingBottom: theme.semanticSpacing.sm,
+    marginBottom: theme.semanticSpacing.sm,
+  },
+  addressDetails: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  addOnsSection: {
+    marginTop: theme.semanticSpacing.sm,
+    paddingTop: theme.semanticSpacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+  },
+  addOnsTitle: {
+    marginBottom: theme.semanticSpacing.xs,
+  },
+  addOnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    paddingLeft: theme.semanticSpacing.sm,
+  },
+  totalRow: {
+    borderTopWidth: 2,
+    borderTopColor: theme.colors.primary.main,
+    borderBottomWidth: 0,
+    marginTop: theme.semanticSpacing.sm,
+    paddingTop: theme.semanticSpacing.md,
   },
   heroCard: {
     marginBottom: theme.semanticSpacing.md,

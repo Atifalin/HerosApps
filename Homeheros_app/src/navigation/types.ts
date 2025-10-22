@@ -76,6 +76,11 @@ export interface Booking {
   status: 'draft' | 'requested' | 'confirmed' | 'en_route' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   request: BookingRequest;
   hero?: Hero;
+  addOnDetails?: Array<{
+    id: string;
+    name: string;
+    price: number;
+  }>;
   pricing: {
     basePrice: number;
     callOutFee: number;
