@@ -432,10 +432,25 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
           </View>
           
           <View style={styles.detailRow}>
-            <Typography variant="body2" color="secondary">Date & Time</Typography>
-            <Typography variant="body1">
-              {formatDate(new Date(booking.request.scheduledDate))} at {booking.request.scheduledTime}
-            </Typography>
+            <Typography variant="body2" color="secondary">Scheduled</Typography>
+            <View style={styles.dateTimeContainer}>
+              <View style={styles.dateBox}>
+                <Ionicons name="calendar" size={16} color={theme.colors.primary.main} />
+                <Typography variant="body2" weight="medium" style={styles.dateText}>
+                  {new Date(booking.request.scheduledDate).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </Typography>
+              </View>
+              <View style={styles.timeBox}>
+                <Ionicons name="time" size={16} color={theme.colors.primary.main} />
+                <Typography variant="body2" weight="medium" style={styles.timeText}>
+                  {booking.request.scheduledTime}
+                </Typography>
+              </View>
+            </View>
           </View>
           
           <View style={styles.detailRow}>
@@ -671,6 +686,35 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     marginTop: theme.semanticSpacing.sm,
     paddingTop: theme.semanticSpacing.md,
+  },
+  dateTimeContainer: {
+    flexDirection: 'row',
+    gap: theme.semanticSpacing.xs,
+    alignItems: 'center',
+  },
+  dateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${theme.colors.primary.main}10`,
+    paddingHorizontal: theme.semanticSpacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.md,
+    gap: 6,
+  },
+  timeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${theme.colors.primary.main}10`,
+    paddingHorizontal: theme.semanticSpacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.md,
+    gap: 6,
+  },
+  dateText: {
+    fontSize: 13,
+  },
+  timeText: {
+    fontSize: 13,
   },
   heroCard: {
     marginBottom: theme.semanticSpacing.md,
