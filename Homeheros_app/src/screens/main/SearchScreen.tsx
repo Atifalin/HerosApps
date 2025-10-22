@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Typography, Card } from '../../components/ui';
 import { theme } from '../../theme';
 import { useLocation } from '../../contexts/LocationContext';
+import { supabase } from '../../lib/supabase';
+import { serviceCatalog } from '../../data/serviceCatalog';
 
 interface SearchScreenProps {
   navigation: any;
@@ -166,9 +168,39 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
   const [query, setQuery] = useState(route.params?.initialQuery || '');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [popularServices, setPopularServices] = useState<SearchResult[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([
     'cleaning', 'chef', 'plumbing'
   ]);
+
+  // Load popular services on mount
+  useEffect(() => {
+    const loadPopularServices = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('services')
+          .select('id, title, slug, icon, color, description')
+          .eq('active', true)
+          .limit(4);
+
+        if (!error && data) {
+          const popular = data.map(service => ({
+            id: service.id,
+            type: 'service' as const,
+            title: service.title,
+            description: service.description || '',
+            icon: service.icon as keyof typeof Ionicons.glyphMap,
+            color: service.color,
+          }));
+          setPopularServices(popular);
+        }
+      } catch (error) {
+        console.error('Error loading popular services:', error);
+      }
+    };
+
+    loadPopularServices();
+  }, []);
 
   // Perform search when query changes
   useEffect(() => {
@@ -177,24 +209,93 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
       return;
     }
 
-    setLoading(true);
-    
-    // Simulate API call delay
-    const timer = setTimeout(() => {
-      // Filter mock results based on query
-      const filteredResults = mockSearchResults.filter(item => 
-        item.title.toLowerCase().includes(query.toLowerCase()) ||
-        item.description.toLowerCase().includes(query.toLowerCase()) ||
-        (item.parentName && item.parentName.toLowerCase().includes(query.toLowerCase()))
-      );
+    const performSearch = async () => {
+      setLoading(true);
       
-      setResults(filteredResults);
-      setLoading(false);
-      
-      // Add to recent searches if not already there
-      if (query.trim() !== '' && !recentSearches.includes(query.trim())) {
-        setRecentSearches(prev => [query.trim(), ...prev.slice(0, 4)]);
+      try {
+        // Fetch ALL services with their variants to search through them
+        const { data: servicesData, error: servicesError } = await supabase
+          .from('services')
+          .select(`
+            id,
+            title,
+            slug,
+            icon,
+            color,
+            description,
+            service_variants (
+              id,
+              name,
+              slug,
+              description,
+              base_price
+            )
+          `)
+          .eq('active', true);
+
+        if (servicesError) {
+          console.error('Search error:', servicesError);
+          setResults([]);
+          setLoading(false);
+          return;
+        }
+
+        const searchResults: SearchResult[] = [];
+        const lowerQuery = query.toLowerCase();
+
+        // Search through all services and variants
+        servicesData?.forEach(service => {
+          const serviceMatches = 
+            service.title.toLowerCase().includes(lowerQuery) ||
+            service.description?.toLowerCase().includes(lowerQuery);
+
+          // Add service if it matches
+          if (serviceMatches) {
+            searchResults.push({
+              id: service.id,
+              type: 'service',
+              title: service.title,
+              description: service.description || '',
+              icon: service.icon as keyof typeof Ionicons.glyphMap,
+              color: service.color,
+            });
+          }
+
+          // Always check subcategories for matches
+          service.service_variants?.forEach((variant: any) => {
+            if (
+              variant.name.toLowerCase().includes(lowerQuery) ||
+              variant.description?.toLowerCase().includes(lowerQuery)
+            ) {
+              searchResults.push({
+                id: variant.id,
+                type: 'subcategory',
+                title: variant.name,
+                description: variant.description || '',
+                parentId: service.id,
+                parentName: service.title,
+                price: variant.base_price ? `From $${(variant.base_price / 100).toFixed(0)}` : 'Custom pricing',
+              });
+            }
+          });
+        });
+
+        setResults(searchResults);
+        
+        // Add to recent searches if not already there
+        if (query.trim() !== '' && !recentSearches.includes(query.trim())) {
+          setRecentSearches(prev => [query.trim(), ...prev.slice(0, 4)]);
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        setResults([]);
+      } finally {
+        setLoading(false);
       }
+    };
+
+    const timer = setTimeout(() => {
+      performSearch();
     }, 500);
     
     return () => clearTimeout(timer);
@@ -205,26 +306,54 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
     setResults([]);
   };
 
-  const handleResultPress = (result: SearchResult) => {
+  const handleResultPress = async (result: SearchResult) => {
     if (result.type === 'service') {
-      // Find the full service object and navigate to service detail
-      const serviceId = result.id.split('-')[0];
-      // In a real app, you would fetch the full service object
-      console.log(`Navigate to service: ${result.title}`);
+      // Fetch full service data including image
+      const localService = serviceCatalog.find(s => s.id === result.id || s.name === result.title);
+      
       navigation.navigate('ServiceDetail', { 
         service: {
-          id: serviceId,
+          id: result.id,
           name: result.title,
           description: result.description,
           icon: result.icon,
           color: result.color,
-          // Add other required properties
+          subcategories: [], // Will be fetched by ServiceDetailScreen
+          image: localService?.image || require('../../../assets/Services_images/cleaning.png'),
         }
       });
     } else if (result.type === 'subcategory') {
       // Navigate to booking flow with subcategory
-      console.log(`Navigate to booking for subcategory: ${result.title}`);
-      // navigation.navigate('Booking', { subcategory: result });
+      // First need to get the full service data
+      try {
+        const { data: serviceData } = await supabase
+          .from('services')
+          .select('*')
+          .eq('id', result.parentId)
+          .single();
+        
+        if (serviceData) {
+          const localService = serviceCatalog.find(s => s.name === result.parentName);
+          navigation.navigate('Booking', { 
+            service: {
+              id: serviceData.id,
+              name: serviceData.title,
+              description: serviceData.description,
+              icon: serviceData.icon,
+              color: serviceData.color,
+              image: localService?.image || require('../../../assets/Services_images/cleaning.png'),
+            },
+            subcategory: {
+              id: result.id,
+              name: result.title,
+              description: result.description,
+              price: result.price,
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching service for booking:', error);
+      }
     } else if (result.type === 'hero') {
       // Navigate to hero profile
       console.log(`Navigate to hero profile: ${result.title}`);
@@ -384,24 +513,20 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
           </Typography>
           
           <View style={styles.popularContainer}>
-            {mockSearchResults
-              .filter(item => item.type === 'service')
-              .slice(0, 4)
-              .map(service => (
-                <TouchableOpacity
-                  key={service.id}
-                  style={styles.popularItem}
-                  onPress={() => handleResultPress(service)}
-                >
-                  <View style={[styles.popularIcon, { backgroundColor: `${service.color}15` }]}>
-                    <Ionicons name={service.icon as any} size={24} color={service.color} />
-                  </View>
-                  <Typography variant="body2" weight="medium" style={styles.popularText}>
-                    {service.title}
-                  </Typography>
-                </TouchableOpacity>
-              ))
-            }
+            {popularServices.map(service => (
+              <TouchableOpacity
+                key={service.id}
+                style={styles.popularItem}
+                onPress={() => handleResultPress(service)}
+              >
+                <View style={[styles.popularIcon, { backgroundColor: `${service.color}15` }]}>
+                  <Ionicons name={service.icon as any} size={24} color={service.color} />
+                </View>
+                <Typography variant="body2" weight="medium" style={styles.popularText}>
+                  {service.title}
+                </Typography>
+              </TouchableOpacity>
+            ))}
           </View>
         </ScrollView>
       )}

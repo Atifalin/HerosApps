@@ -43,13 +43,13 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
     try {
       setLoadingHeroes(true);
       
-      // Fetch heroes from Supabase
+      // Fetch heroes from Supabase (using 'heros' table)
       const { data: heroesData, error } = await supabase
-        .from('heroes')
+        .from('heros')
         .select('*')
-        .eq('is_active', true)
-        .eq('is_verified', true)
-        .order('rating', { ascending: false });
+        .eq('status', 'active')
+        .eq('verification_status', 'verified')
+        .order('rating_avg', { ascending: false });
 
       if (error) {
         console.error('Error loading heroes:', error);
@@ -60,11 +60,11 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
       const transformedHeroes: Hero[] = heroesData.map((hero: any) => ({
         id: hero.id,
         name: hero.name,
-        rating: parseFloat(hero.rating) || 0,
-        reviewCount: hero.review_count || 0,
+        rating: parseFloat(hero.rating_avg) || 0,
+        reviewCount: hero.rating_count || 0,
         avatar: hero.photo_url,
         skills: hero.skills || [], 
-        isAvailable: hero.is_active,
+        isAvailable: hero.status === 'active',
         distance: Math.random() * 5 + 1, // Mock distance for now
         priceMultiplier: 1.0 + (Math.random() * 0.2 - 0.1), // Random multiplier between 0.9-1.1
         contractor_id: hero.contractor_id // Add contractor_id from database
@@ -135,31 +135,20 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
     try {
       // 1. Create booking first to get proper booking ID
       const bookingData = {
-        customer_id: user?.id || '550e8400-e29b-41d4-a716-446655440000', // Use test user if no authenticated user
-        contractor_id: selectedHero.contractor_id || '550e8400-e29b-41d4-a716-446655440000', // Use hero's contractor or default
+        customer_id: user?.id || 'd4285f89-01eb-42d2-a848-dbc32c7a767b',
+        contractor_id: selectedHero.contractor_id || '550e8400-e29b-41d4-a716-446655440000',
+        address_id: 'df1059b3-ae89-4a32-82f3-7a31c976653f', // Use existing address for now
         service_id: bookingRequest.serviceId,
         service_variant_id: bookingRequest.subcategoryId,
-        service_name: bookingRequest.serviceName, // Store service name for display
-        variant_name: bookingRequest.variantName, // Store variant name for display
+        service_name: bookingRequest.serviceName,
+        variant_name: bookingRequest.variantName,
         hero_id: selectedHero.id,
         status: 'requested',
-        scheduled_at: new Date().toISOString(), // Use current date as fallback
-        scheduled_date: new Date(bookingRequest.scheduledDate).toISOString().split('T')[0],
-        scheduled_time: bookingRequest.scheduledTime,
-        duration: bookingRequest.duration,
-        duration_min: bookingRequest.duration, // Also set duration_min
-        price_cents: Math.round(finalPricing.total * 100), // Convert to cents
+        scheduled_at: new Date(bookingRequest.scheduledDate).toISOString(),
+        duration_min: bookingRequest.duration,
+        price_cents: Math.round(finalPricing.total * 100),
         currency: 'CAD',
-        address_street: bookingRequest.address.street,
-        address_city: bookingRequest.address.city,
-        address_postal_code: bookingRequest.address.postalCode,
-        base_price: finalPricing.basePrice,
-        call_out_fee: finalPricing.callOutFee,
-        add_on_total: finalPricing.addOnTotal,
-        subtotal: finalPricing.subtotal,
-        tax_amount: finalPricing.tax,
-        total_amount: finalPricing.total,
-        special_instructions: bookingRequest.specialInstructions,
+        notes: bookingRequest.specialInstructions,
       };
 
       const { data: booking, error: bookingError } = await supabase

@@ -21,7 +21,7 @@ interface OnboardingSlide {
   subtitle: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
-  gradient: string[];
+  gradient: readonly [string, string, ...string[]];
 }
 
 const onboardingData: OnboardingSlide[] = [

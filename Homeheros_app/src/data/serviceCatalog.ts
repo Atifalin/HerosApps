@@ -363,6 +363,43 @@ export const serviceCatalog: ServiceCategory[] = [
         addOns: []
       }
     ]
+  },
+  {
+    id: 'moving-services',
+    name: 'Moving Services',
+    icon: 'cube-outline',
+    color: '#00CEC9',
+    description: 'Packing & Moving',
+    image: require('../../assets/Services_images/handyman.png'), // TODO: Add moving.png
+    callOutFee: '$50 call-out fee',
+    minDuration: 120, // 2 hours
+    maxDuration: 480, // 8 hours
+    subcategories: [
+      {
+        id: 'local-moving',
+        name: 'Local Moving',
+        description: 'Moving within the city',
+        price: 'From $150',
+        duration: 240, // 4 hours
+        addOns: []
+      },
+      {
+        id: 'packing-services',
+        name: 'Packing Services',
+        description: 'Professional packing and unpacking',
+        price: 'From $100',
+        duration: 180, // 3 hours
+        addOns: []
+      },
+      {
+        id: 'furniture-moving',
+        name: 'Furniture Moving',
+        description: 'Heavy furniture and appliance moving',
+        price: 'From $200',
+        duration: 120, // 2 hours
+        addOns: []
+      }
+    ]
   }
 ];
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,12 +6,15 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Typography, Button, Card } from '../../components/ui';
 import { theme } from '../../theme';
 import { serviceCatalog, getServiceById } from '../../data/serviceCatalog';
+import { supabase } from '../../lib/supabase';
 
 interface ServiceDetailScreenProps {
   navigation: any;
@@ -33,7 +36,80 @@ interface ServiceDetailScreenProps {
 const { width: screenWidth } = Dimensions.get('window');
 
 export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({ route, navigation }) => {
-  const { service } = route.params;
+  const { service: initialService } = route.params;
+  const [service, setService] = useState(initialService);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch fresh service data from Supabase
+  const fetchServiceData = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('services')
+        .select(`
+          id,
+          title,
+          slug,
+          icon,
+          color,
+          description,
+          call_out_fee,
+          min_duration,
+          max_duration,
+          service_variants (
+            id,
+            name,
+            slug,
+            description,
+            base_price,
+            default_duration
+          )
+        `)
+        .eq('id', initialService.id)
+        .eq('active', true)
+        .single();
+
+      if (error) {
+        console.error('Error fetching service:', error);
+        return;
+      }
+
+      if (data) {
+        // Transform data to match expected format
+        const transformedService = {
+          id: data.id,
+          name: data.title,
+          icon: data.icon,
+          color: data.color,
+          description: data.description,
+          image: initialService.image,
+          callOutFee: data.call_out_fee > 0 ? `$${data.call_out_fee} call out fee` : 'No call-out fee',
+          minDuration: data.min_duration,
+          maxDuration: data.max_duration,
+          subcategories: data.service_variants?.map((variant: any) => ({
+            id: variant.id,
+            name: variant.name,
+            description: variant.description,
+            price: variant.base_price ? `From $${(variant.base_price / 100).toFixed(0)}` : 'Custom pricing',
+            duration: variant.default_duration,
+            addOns: []
+          })) || []
+        };
+        setService(transformedService);
+      }
+    } catch (error) {
+      console.error('Error fetching service data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchServiceData();
+    }, [initialService.id])
+  );
 
   const handleSubcategoryPress = (subcategory: any) => {
     // Navigate to booking screen
@@ -64,7 +140,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({ route,
         <View style={styles.contentContainer}>
           <View style={styles.titleContainer}>
             <View style={[styles.iconContainer, { backgroundColor: service.color }]}>
-              <Ionicons name={service.icon as any} size={32} color={service.color} />
+              <Ionicons name={service.icon as any} size={32} color={theme.colors.neutral.white} />
             </View>
             <View style={styles.titleTextContainer}>
               <Typography variant="h4" weight="semibold" color="primary">
@@ -82,7 +158,17 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({ route,
               Services We Offer
             </Typography>
 
-            {service.subcategories.map((subcategory) => (
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={theme.colors.primary.main} />
+                <Typography variant="body2" color="secondary" style={styles.loadingText}>
+                  Updating prices...
+                </Typography>
+              </View>
+            )}
+
+            {service.subcategories && service.subcategories.length > 0 ? (
+              service.subcategories.map((subcategory) => (
               <TouchableOpacity
                 key={subcategory.id}
                 style={styles.subcategoryCard}
@@ -121,7 +207,14 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({ route,
                   </View>
                 </Card>
               </TouchableOpacity>
-            ))}
+            ))
+            ) : (
+              !loading && (
+                <Typography variant="body2" color="secondary" style={styles.noSubcategories}>
+                  No services available at the moment.
+                </Typography>
+              )
+            )}
           </View>
 
           {/* Book service button */}
@@ -220,7 +313,20 @@ const styles = StyleSheet.create({
     color: theme.colors.primary.main,
   },
   subcategoryDescription: {
-    marginBottom: theme.semanticSpacing.sm,
+    marginTop: 4,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.semanticSpacing.md,
+  },
+  loadingText: {
+    marginLeft: theme.semanticSpacing.sm,
+  },
+  noSubcategories: {
+    textAlign: 'center',
+    paddingVertical: theme.semanticSpacing.xl,
   },
   buttonContainer: {
     alignItems: 'flex-start',

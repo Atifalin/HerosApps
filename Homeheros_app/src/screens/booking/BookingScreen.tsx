@@ -25,7 +25,7 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
 }) => {
   const { service, subcategory } = route.params;
   const { currentCity } = useLocation();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Form state
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -38,39 +38,85 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
     street: '',
     city: currentCity,
     postalCode: '',
+    province: 'ON',
+    label: '',
   });
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [loading, setLoading] = useState(false);
   const [addOns, setAddOns] = useState<any[]>([]);
   const [loadingAddOns, setLoadingAddOns] = useState(true);
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [saveAddress, setSaveAddress] = useState(false);
+  const [showAddressSelector, setShowAddressSelector] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState(profile?.phone || '');
+  const [savePhoneToProfile, setSavePhoneToProfile] = useState(false);
 
-  // Fetch add-ons from Supabase
+  // Fetch add-ons and saved addresses from Supabase
   useEffect(() => {
     fetchAddOns();
+    fetchSavedAddresses();
   }, [service.id]);
+
+  const fetchSavedAddresses = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        // Gracefully handle missing column error
+        if (error.code === '42703') {
+          console.log('Addresses table schema needs update. Skipping saved addresses.');
+          setSavedAddresses([]);
+          return;
+        }
+        console.error('Error fetching saved addresses:', error);
+        return;
+      }
+
+      setSavedAddresses(data || []);
+      
+      // Auto-select default address if exists
+      const defaultAddress = data?.find(addr => addr.is_default);
+      if (defaultAddress) {
+        handleSelectSavedAddress(defaultAddress);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setSavedAddresses([]); // Set empty array on error
+    }
+  };
+
+  const handleSelectSavedAddress = (savedAddress: any) => {
+    setSelectedAddressId(savedAddress.id);
+    setAddress({
+      street: savedAddress.street,
+      city: savedAddress.city,
+      postalCode: savedAddress.postal_code,
+      province: savedAddress.province || 'ON',
+      label: savedAddress.label || '',
+    });
+    setShowAddressSelector(false);
+    setSaveAddress(false); // Don't save if using existing address
+  };
 
   const fetchAddOns = async () => {
     try {
       setLoadingAddOns(true);
       
-      // Get the service UUID from the database using the slug
-      const { data: serviceData, error: serviceError } = await supabase
-        .from('services')
-        .select('id')
-        .eq('slug', service.id)
-        .single();
-
-      if (serviceError || !serviceData) {
-        console.error('Error fetching service:', serviceError);
-        setAddOns(getAddOnsByCategory(service.id)); // Fallback to static data
-        return;
-      }
+      // service.id is already the UUID, no need to query
+      const serviceId = service.id;
 
       // Fetch add-ons for this service
       const { data: addOnsData, error: addOnsError } = await supabase
         .from('add_ons')
         .select('*')
-        .eq('service_id', serviceData.id)
+        .eq('service_id', serviceId)
         .eq('is_active', true);
 
       if (addOnsError) {
@@ -80,11 +126,12 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
       }
 
       // Transform to match expected format
+      // Note: add_ons.price is stored as DECIMAL (dollars), not cents
       const transformedAddOns = addOnsData.map((addOn: any) => ({
         id: addOn.id,
         name: addOn.name,
         description: addOn.description,
-        price: parseFloat(addOn.price),
+        price: parseFloat(addOn.price) || 0,
         category: addOn.category
       }));
 
@@ -158,6 +205,20 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
       Alert.alert('Error', 'Please enter your postal code');
       return false;
     }
+    if (saveAddress && !address.label.trim()) {
+      Alert.alert('Error', 'Please enter a label for this address (e.g., Home, Work)');
+      return false;
+    }
+    if (!phoneNumber.trim()) {
+      Alert.alert('Error', 'Please enter your phone number');
+      return false;
+    }
+    // Basic phone validation
+    const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/;
+    if (!phoneRegex.test(phoneNumber.trim())) {
+      Alert.alert('Error', 'Please enter a valid phone number');
+      return false;
+    }
     
     const now = new Date();
     const bookingDateTime = new Date(selectedDate);
@@ -177,37 +238,26 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
     setLoading(true);
     
     try {
-      // Get the actual UUID for the service based on the slug
-      const { data: serviceData, error: serviceError } = await supabase
-        .from('services')
-        .select('id')
-        .eq('slug', service.id)
-        .single();
-        
-      if (serviceError) {
-        console.error('Error fetching service ID:', serviceError);
-        Alert.alert('Error', 'Failed to prepare booking. Please try again.');
-        setLoading(false);
-        return;
+      // service.id and subcategory.id are already UUIDs
+      const serviceId = service.id;
+      const variantId = subcategory.id;
+
+    // Save phone to profile if checkbox is checked
+    if (savePhoneToProfile && phoneNumber.trim() && user?.id) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({ phone: phoneNumber.trim() })
+          .eq('id', user.id);
+        console.log('Phone number saved to profile');
+      } catch (error) {
+        console.error('Error saving phone to profile:', error);
       }
-      
-      // Get the actual UUID for the service variant based on the slug
-      const { data: variantData, error: variantError } = await supabase
-        .from('service_variants')
-        .select('id')
-        .eq('slug', subcategory.id)
-        .single();
-        
-      if (variantError) {
-        console.error('Error fetching variant ID:', variantError);
-        Alert.alert('Error', 'Failed to prepare booking. Please try again.');
-        setLoading(false);
-        return;
-      }
+    }
 
     const bookingRequest = {
-      serviceId: serviceData.id, // Use the actual UUID
-      subcategoryId: variantData.id, // Use the actual UUID
+      serviceId: serviceId, // Use the actual UUID
+      subcategoryId: variantId, // Use the actual UUID
       serviceName: service.name, // Include the service name
       variantName: subcategory.name, // Include the variant name
       scheduledDate: selectedDate.toISOString(),
@@ -218,6 +268,7 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
         city: address.city,
         postalCode: address.postalCode,
       },
+      phoneNumber: phoneNumber.trim(),
       addOns: selectedAddOns,
       specialInstructions: specialInstructions.trim() || undefined,
     };
@@ -356,14 +407,64 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
 
         {/* Address */}
         <Card variant="default" padding="md" style={styles.sectionCard}>
-          <Typography variant="h6" weight="semibold" style={styles.sectionTitle}>
-            Service Address
-          </Typography>
+          <View style={styles.sectionHeader}>
+            <Typography variant="h6" weight="semibold" style={styles.sectionTitle}>
+              Service Address
+            </Typography>
+            {savedAddresses.length > 0 && (
+              <TouchableOpacity onPress={() => setShowAddressSelector(!showAddressSelector)}>
+                <Typography variant="body2" color="brand" weight="medium">
+                  {showAddressSelector ? 'Hide' : 'Saved Addresses'}
+                </Typography>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Saved Addresses Selector */}
+          {showAddressSelector && savedAddresses.length > 0 && (
+            <View style={styles.savedAddressList}>
+              {savedAddresses.map((savedAddr) => (
+                <TouchableOpacity
+                  key={savedAddr.id}
+                  style={[
+                    styles.savedAddressItem,
+                    selectedAddressId === savedAddr.id && styles.selectedAddressItem
+                  ]}
+                  onPress={() => handleSelectSavedAddress(savedAddr)}
+                >
+                  <View style={styles.savedAddressContent}>
+                    <View style={styles.savedAddressHeader}>
+                      <Typography variant="body1" weight="semibold">
+                        {savedAddr.label || 'Address'}
+                      </Typography>
+                      {savedAddr.is_default && (
+                        <View style={styles.defaultBadge}>
+                          <Typography variant="caption" color="inverse">Default</Typography>
+                        </View>
+                      )}
+                    </View>
+                    <Typography variant="body2" color="secondary">
+                      {savedAddr.street}
+                    </Typography>
+                    <Typography variant="caption" color="secondary">
+                      {savedAddr.city}, {savedAddr.province} {savedAddr.postal_code}
+                    </Typography>
+                  </View>
+                  {selectedAddressId === savedAddr.id && (
+                    <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary.main} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           
           <Input
             placeholder="Street address"
             value={address.street}
-            onChangeText={(text) => setAddress(prev => ({ ...prev, street: text }))}
+            onChangeText={(text) => {
+              setAddress(prev => ({ ...prev, street: text }));
+              setSelectedAddressId(null); // Clear selection when manually editing
+            }}
             leftIcon="location-outline"
             style={styles.addressInput}
           />
@@ -384,6 +485,69 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
               style={styles.addressInput}
             />
           </View>
+
+          {/* Save Address Checkbox */}
+          {!selectedAddressId && (
+            <View style={styles.saveAddressContainer}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setSaveAddress(!saveAddress)}
+              >
+                <View style={[styles.checkbox, saveAddress && styles.checkboxChecked]}>
+                  {saveAddress && (
+                    <Ionicons name="checkmark" size={16} color={theme.colors.neutral.white} />
+                  )}
+                </View>
+                <Typography variant="body2" style={styles.checkboxLabel}>
+                  Save this address for future bookings
+                </Typography>
+              </TouchableOpacity>
+
+              {saveAddress && (
+                <Input
+                  placeholder="Label (e.g., Home, Work, Mom's House)"
+                  value={address.label}
+                  onChangeText={(text) => setAddress(prev => ({ ...prev, label: text }))}
+                  leftIcon="pricetag-outline"
+                  style={styles.labelInput}
+                />
+              )}
+            </View>
+          )}
+        </Card>
+
+        {/* Phone Number */}
+        <Card variant="default" padding="md" style={styles.sectionCard}>
+          <Typography variant="h6" weight="semibold" style={styles.sectionTitle}>
+            Contact Phone Number
+          </Typography>
+          
+          <Input
+            placeholder="Phone number (e.g., +1 416-555-0123)"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            leftIcon="call-outline"
+            keyboardType="phone-pad"
+            style={styles.phoneInput}
+          />
+
+          {!profile?.phone && phoneNumber.trim() && (
+            <View style={styles.savePhoneContainer}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setSavePhoneToProfile(!savePhoneToProfile)}
+              >
+                <View style={[styles.checkbox, savePhoneToProfile && styles.checkboxChecked]}>
+                  {savePhoneToProfile && (
+                    <Ionicons name="checkmark" size={16} color={theme.colors.neutral.white} />
+                  )}
+                </View>
+                <Typography variant="body2" style={styles.checkboxLabel}>
+                  Save phone number to my profile
+                </Typography>
+              </TouchableOpacity>
+            </View>
+          )}
         </Card>
 
         {/* Add-ons */}
@@ -549,6 +713,76 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     marginBottom: theme.semanticSpacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.semanticSpacing.md,
+  },
+  savedAddressList: {
+    marginBottom: theme.semanticSpacing.md,
+    gap: theme.semanticSpacing.sm,
+  },
+  savedAddressItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: theme.semanticSpacing.sm,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  selectedAddressItem: {
+    borderColor: theme.colors.primary.main,
+    backgroundColor: theme.colors.primary.main + '10',
+  },
+  savedAddressContent: {
+    flex: 1,
+  },
+  savedAddressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.semanticSpacing.xs,
+    marginBottom: 4,
+  },
+  defaultBadge: {
+    backgroundColor: theme.colors.status.success,
+    paddingHorizontal: theme.semanticSpacing.xs,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  saveAddressContainer: {
+    marginTop: theme.semanticSpacing.md,
+    paddingTop: theme.semanticSpacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.semanticSpacing.sm,
+  },
+  checkboxChecked: {
+    backgroundColor: theme.colors.primary.main,
+    borderColor: theme.colors.primary.main,
+  },
+  checkboxLabel: {
+    marginLeft: theme.semanticSpacing.sm,
+    flex: 1,
+  },
+  labelInput: {
+    marginTop: theme.semanticSpacing.sm,
+  },
+  phoneInput: {
+    marginBottom: 0,
+  },
+  savePhoneContainer: {
+    marginTop: theme.semanticSpacing.md,
+    paddingTop: theme.semanticSpacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
   },
   dateTimeContainer: {
     flexDirection: 'row',

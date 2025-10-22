@@ -68,7 +68,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     testSupabaseConnection();
     
     // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      // Handle invalid refresh token error
+      if (error) {
+        console.warn('⚠️ Session error:', error.message);
+        if (error.message.includes('refresh_token_not_found') || 
+            error.message.includes('Invalid Refresh Token')) {
+          console.log('🧹 Clearing invalid session...');
+          await supabase.auth.signOut();
+        }
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -78,19 +88,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       setLoading(false);
+    }).catch(async (err) => {
+      console.error('❌ Session initialization error:', err);
+      // Clear any corrupted session
+      await supabase.auth.signOut();
+      setLoading(false);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 Auth state changed:', event, session?.user?.email);
+      
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        console.log('👤 User signed in, fetching profile...');
         const userProfile = await fetchProfile(session.user.id);
         setProfile(userProfile);
+        console.log('✅ Profile loaded:', userProfile?.email);
       } else {
+        console.log('👋 User signed out');
         setProfile(null);
       }
       
@@ -109,9 +129,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: undefined, // Disable email confirmation for now
-        }
       });
       
       if (error) {
@@ -120,7 +137,65 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           status: error.status,
           name: error.name,
         });
+        
+        // If user already exists, suggest signing in instead
+        if (error.message?.toLowerCase().includes('already') || 
+            error.message?.toLowerCase().includes('exists')) {
+          return { 
+            error: { 
+              ...error, 
+              message: 'An account with this email already exists. Please sign in instead.' 
+            } 
+          };
+        }
+        
         return { error };
+      }
+      
+      // Check if user was created but no session (unconfirmed email)
+      if (data.user && !data.session) {
+        console.warn('User created but no session - email confirmation may be required');
+        return { 
+          error: { 
+            message: 'Account created but email confirmation is required. Please check your email or contact support.' 
+          } 
+        };
+      }
+      
+      // Ensure profile is created (fallback if trigger doesn't work)
+      if (data.user && data.session) {
+        console.log('Checking if profile exists for user:', data.user.id);
+        
+        // Wait a moment for the trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check if profile was created by trigger
+        const existingProfile = await fetchProfile(data.user.id);
+        
+        if (!existingProfile) {
+          console.warn('Profile not found, creating manually...');
+          
+          // Create profile manually as fallback
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.email?.split('@')[0] || 'User',
+              role: 'customer',
+              status: 'active',
+            });
+          
+          if (profileError) {
+            console.error('Failed to create profile:', profileError);
+            // Don't fail the signup, but log the error
+            // The user can still use the app, profile will be created on next login
+          } else {
+            console.log('Profile created successfully via fallback');
+          }
+        } else {
+          console.log('Profile already exists (created by trigger)');
+        }
       }
       
       console.log('Signup successful:', {
@@ -135,11 +210,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      console.log('Attempting sign in with:', email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (error) {
+        console.error('Sign in error:', {
+          message: error.message,
+          status: error.status,
+        });
+        
+        // Provide more helpful error messages
+        if (error.message?.toLowerCase().includes('invalid') || 
+            error.message?.toLowerCase().includes('credentials')) {
+          return { 
+            error: { 
+              ...error, 
+              message: 'Invalid email or password. Please try again.' 
+            } 
+          };
+        }
+        
+        if (error.message?.toLowerCase().includes('email not confirmed')) {
+          return { 
+            error: { 
+              ...error, 
+              message: 'Please verify your email address before signing in. Check your inbox for the confirmation link.' 
+            } 
+          };
+        }
+        
+        return { error };
+      }
+      
+      // Check if sign in succeeded but no session was created
+      if (!data.session && !error) {
+        console.error('Sign in returned no error but also no session');
+        return { 
+          error: { 
+            message: 'Unable to sign in. Your account may need email verification. Please contact support.' 
+          } 
+        };
+      }
+      
+      console.log('Sign in successful:', {
+        user: data.user?.id,
+        session: data.session?.access_token ? 'present' : 'null',
+      });
+      
+      return { error: null };
+    } catch (err) {
+      console.error('Unexpected sign in error:', err);
+      return { 
+        error: { 
+          message: 'An unexpected error occurred. Please check your internet connection and try again.' 
+        } 
+      };
+    }
   };
 
   const signOut = async () => {

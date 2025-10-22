@@ -117,7 +117,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ navigation }) => {
 
   const handleAddresses = () => {
     // Navigate to addresses screen
-    console.log('Addresses');
+    navigation.navigate('SavedAddresses');
   };
 
   const handleHelp = () => {

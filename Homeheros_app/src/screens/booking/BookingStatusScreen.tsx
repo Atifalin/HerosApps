@@ -63,7 +63,7 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
             skills,
             contractor_id
           ),
-          services (id, name),
+          services (id, title),
           service_variants (id, name)
         `)
         .eq('id', bookingId)
@@ -82,18 +82,18 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
         request: {
           serviceId: data.service_id,
           subcategoryId: data.service_variant_id,
-          serviceName: data.services?.name || 'Unknown Service',
-          variantName: data.service_variants?.name || 'Unknown Variant',
-          scheduledDate: data.scheduled_date, // Keep as string for navigation compatibility
-          scheduledTime: data.scheduled_time,
-          duration: data.duration,
+          serviceName: data.services?.title || data.service_name || 'Unknown Service',
+          variantName: data.service_variants?.name || data.variant_name || 'Unknown Variant',
+          scheduledDate: data.scheduled_at,
+          scheduledTime: data.scheduled_at,
+          duration: data.duration_min,
           address: {
-            street: data.address_street,
-            city: data.address_city,
-            postalCode: data.address_postal_code,
+            street: '',
+            city: '',
+            postalCode: '',
           },
-          addOns: [], // Would need to fetch from booking_add_ons table
-          specialInstructions: data.special_instructions,
+          addOns: [],
+          specialInstructions: data.notes,
           heroId: data.hero_id,
         },
         hero: data.heros ? {
@@ -106,19 +106,19 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
           contractor_id: data.heros.contractor_id
         } : undefined,
         pricing: {
-          basePrice: data.base_price,
-          callOutFee: data.call_out_fee,
-          addOnTotal: data.add_on_total,
-          subtotal: data.subtotal,
-          tax: data.tax_amount,
-          total: data.total_amount,
-          promoDiscount: data.promo_discount,
+          basePrice: 0,
+          callOutFee: 0,
+          addOnTotal: 0,
+          subtotal: data.price_cents / 100,
+          tax: 0,
+          total: data.price_cents / 100,
+          promoDiscount: 0,
         },
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at),
-        estimatedArrival: data.estimated_arrival ? new Date(data.estimated_arrival) : undefined,
-        actualArrival: data.actual_arrival ? new Date(data.actual_arrival) : undefined,
-        completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
+        estimatedArrival: undefined,
+        actualArrival: undefined,
+        completedAt: undefined,
       };
 
       setBooking(transformedBooking);

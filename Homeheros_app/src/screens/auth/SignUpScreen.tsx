@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
-import { testDirectAuth } from '../../utils/testDirectAuth';
 import { Button, Input, Typography } from '../../components/ui';
 import { theme } from '../../theme';
 
@@ -23,7 +22,20 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
+  const { signUp, signIn, user } = useAuth();
+
+  // Monitor user state and navigate when authenticated
+  useEffect(() => {
+    console.log('👤 SignUpScreen - User state changed:', user?.email || 'No user');
+    if (user) {
+      console.log('✅ User is authenticated, forcing navigation to MainTabs');
+      // Force navigation by resetting the navigation stack
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
+    }
+  }, [user, navigation]);
 
   const handleSignUp = async () => {
     if (!email || !password || !confirmPassword) {
@@ -43,26 +55,44 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Test direct auth first
-      console.log('Testing direct auth...');
-      const directResult = await testDirectAuth(email, password);
-      
-      if (directResult.success) {
-        console.log('Direct auth worked! Now trying Supabase client...');
-      }
-      
       const { error } = await signUp(email, password);
-      setLoading(false);
 
       if (error) {
+        setLoading(false);
         console.log('Error details:', JSON.stringify(error));
-        Alert.alert('Sign Up Failed', error.message || 'Network request failed. Please check your connection.');
-      } else {
+        
+        // If user already exists, offer to navigate to sign in
+        if (error.message?.toLowerCase().includes('already exists')) {
+          Alert.alert(
+            'Account Already Exists',
+            'An account with this email already exists. Would you like to sign in instead?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign In', onPress: () => navigation.navigate('Auth') }
+            ]
+          );
+        } else {
+          Alert.alert('Sign Up Failed', error.message || 'Network request failed. Please check your connection.');
+        }
+        return;
+      }
+
+      // Sign up successful - now automatically sign in
+      console.log('✅ Sign up successful, signing in...');
+      const { error: signInError } = await signIn(email, password);
+      
+      setLoading(false);
+
+      if (signInError) {
+        console.error('Sign in after signup failed:', signInError);
         Alert.alert(
-          'Success',
-          'Account created successfully! Please check your email to verify your account.',
+          'Account Created',
+          'Your account was created successfully, but automatic sign-in failed. Please sign in manually.',
           [{ text: 'OK', onPress: () => navigation.navigate('Auth') }]
         );
+      } else {
+        console.log('✅ Automatically signed in after sign up');
+        // Navigation will happen automatically via AuthContext state change
       }
     } catch (err) {
       setLoading(false);
@@ -120,7 +150,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
             />
 
             <Button
-              title={loading ? 'Creating Account...' : 'Create Account'}
+              title={loading ? 'Creating Account...' : 'Create Account & Sign In'}
               onPress={handleSignUp}
               loading={loading}
               disabled={loading}

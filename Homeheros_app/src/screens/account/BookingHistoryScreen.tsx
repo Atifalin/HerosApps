@@ -74,16 +74,16 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
         .select(`
           id,
           status,
-          scheduled_date,
-          scheduled_time,
+          scheduled_at,
+          duration_min,
           service_name,
           variant_name,
-          total_amount,
+          price_cents,
           created_at,
           hero_id,
-          services (id, name),
+          services (id, title),
           service_variants (id, name),
-          heros:hero_id (id, name)
+          heros!bookings_hero_id_fkey (id, name)
         `)
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false });
@@ -103,8 +103,8 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
       const bookingsWithDetails = data?.map((booking: any) => {
         // Use existing service_name/variant_name if available, otherwise try to get from relations
         const serviceName = booking.service_name || 
-          (booking.services && typeof booking.services === 'object' && 'name' in booking.services ? 
-            booking.services.name : 'Unknown Service');
+          (booking.services && typeof booking.services === 'object' && 'title' in booking.services ? 
+            booking.services.title : 'Unknown Service');
             
         const variantName = booking.variant_name || 
           (booking.service_variants && typeof booking.service_variants === 'object' && 'name' in booking.service_variants ? 
@@ -123,19 +123,14 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
 
       // Transform the data for display
       const transformedBookings: Booking[] = bookingsWithDetails.map((booking: any) => {
-        // Make sure total_amount is a number or default to 0
-        let totalAmount = 0;
-        if (booking.total_amount !== null && booking.total_amount !== undefined) {
-          totalAmount = typeof booking.total_amount === 'number' ? 
-            booking.total_amount : 
-            parseFloat(booking.total_amount) || 0;
-        }
+        // Convert price_cents to dollars
+        const totalAmount = booking.price_cents ? booking.price_cents / 100 : 0;
         
         return {
           id: booking.id,
           status: booking.status,
-          scheduled_date: booking.scheduled_date,
-          scheduled_time: booking.scheduled_time,
+          scheduled_date: booking.scheduled_at,
+          scheduled_time: booking.scheduled_at,
           service_name: booking.service_name,
           variant_name: booking.variant_name,
           hero_name: booking.hero_name,

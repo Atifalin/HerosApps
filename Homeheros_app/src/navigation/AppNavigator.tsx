@@ -17,6 +17,7 @@ import { BookingScreen } from '../screens/booking/BookingScreen';
 import { BookingConfirmScreen } from '../screens/booking/BookingConfirmScreen';
 import { BookingStatusScreen } from '../screens/booking/BookingStatusScreen';
 import { BookingHistoryScreen } from '../screens/account/BookingHistoryScreen';
+import { SavedAddressesScreen } from '../screens/account/SavedAddressesScreen';
 import { theme } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -81,6 +82,11 @@ const MainTabNavigator = () => {
 export const AppNavigator: React.FC = () => {
   const { user, loading } = useAuth();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
+
+  // Debug: Log user state changes
+  useEffect(() => {
+    console.log('🧭 AppNavigator - User state:', user?.email || 'No user', 'Loading:', loading, 'First launch:', isFirstLaunch);
+  }, [user, loading, isFirstLaunch]);
 
   useEffect(() => {
     const checkFirstLaunch = async () => {
@@ -174,6 +180,14 @@ export const AppNavigator: React.FC = () => {
           <Stack.Screen 
             name="BookingHistory" 
             component={BookingHistoryScreen as React.ComponentType<any>} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
+            }}
+          />
+          <Stack.Screen 
+            name="SavedAddresses" 
+            component={SavedAddressesScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'

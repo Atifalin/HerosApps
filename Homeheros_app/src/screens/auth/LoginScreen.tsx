@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
+
+  // Navigate to MainTabs when user becomes authenticated
+  useEffect(() => {
+    if (user) {
+      console.log('✅ LoginScreen - User authenticated, navigating to MainTabs');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
+    }
+  }, [user, navigation]);
 
   const handleLogin = async () => {
     if (!email || !password) {

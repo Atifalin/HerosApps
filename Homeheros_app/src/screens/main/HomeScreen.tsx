@@ -38,11 +38,57 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [services, setServices] = useState<ServiceCategory[]>(serviceCatalog);
   const [loading, setLoading] = useState(false);
+  const [recentAddress, setRecentAddress] = useState<any>(null);
+  const [showAddressTooltip, setShowAddressTooltip] = useState(false);
 
   // Fetch services from Supabase
   useEffect(() => {
     fetchServicesFromSupabase();
+    fetchRecentAddress();
   }, []);
+
+  const fetchRecentAddress = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('city', currentCity)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        // PGRST116 is "no rows returned" - this is expected when no addresses exist
+        if (error.code === 'PGRST116') {
+          console.log('No saved addresses found');
+          setRecentAddress(null);
+          setShowAddressTooltip(false);
+        } else if (error.code === '42703') {
+          // Missing column - gracefully skip
+          console.log('Addresses table schema needs update. Skipping tooltip.');
+          setRecentAddress(null);
+          setShowAddressTooltip(false);
+        } else {
+          console.error('Error fetching recent address:', error);
+        }
+        return;
+      }
+
+      if (data) {
+        setRecentAddress(data);
+        setShowAddressTooltip(true);
+        // Auto-hide tooltip after 5 seconds
+        setTimeout(() => setShowAddressTooltip(false), 5000);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setRecentAddress(null);
+      setShowAddressTooltip(false);
+    }
+  };
 
   const fetchServicesFromSupabase = async () => {
     try {
@@ -52,7 +98,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
-          *,
+          id,
+          title,
+          slug,
+          icon,
+          color,
+          description,
+          call_out_fee,
+          min_duration,
+          max_duration,
           service_variants (
             id,
             name,
@@ -62,8 +116,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             default_duration
           )
         `)
-        .eq('is_active', true)
-        .order('created_at');
+        .eq('active', true)
+        .order('title');
 
       if (servicesError) {
         console.error('Error fetching services:', servicesError);
@@ -73,23 +127,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       // Transform Supabase data to match our ServiceCategory interface
       const transformedServices: ServiceCategory[] = servicesData.map((service: any) => ({
-        id: service.slug,
-        name: service.name,
+        id: service.id, // Use UUID instead of slug
+        name: service.title, // Use title from database
         icon: service.icon as keyof typeof Ionicons.glyphMap,
         color: service.color,
         description: service.description,
-        image: getServiceImage(service.slug), // Helper function to get local images
+        image: getServiceImage(service.slug), // Use slug for image lookup
         callOutFee: service.call_out_fee > 0 ? `$${service.call_out_fee} call out fee` : 'No call-out fee',
         minDuration: service.min_duration,
         maxDuration: service.max_duration,
-        subcategories: service.service_variants.map((variant: any) => ({
-          id: variant.slug,
+        subcategories: service.service_variants?.map((variant: any) => ({
+          id: variant.id, // Use UUID instead of slug
           name: variant.name,
           description: variant.description,
-          price: variant.base_price ? `From $${variant.base_price}` : 'Custom pricing',
+          price: variant.base_price ? `From $${(variant.base_price / 100).toFixed(0)}` : 'Custom pricing',
           duration: variant.default_duration,
           addOns: [] // Would need to fetch separately if needed
-        }))
+        })) || []
       }));
 
       setServices(transformedServices);
@@ -111,6 +165,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       'handymen': require('../../../assets/Services_images/handyman.png'),
       'auto-services': require('../../../assets/Services_images/auto.png'),
       'personal-care': require('../../../assets/Services_images/personalcare.png'),
+      'moving-services': require('../../../assets/Services_images/handyman.png'), // TODO: Add moving.png image
     };
     return imageMap[slug] || require('../../../assets/Services_images/cleaning.png');
   };
@@ -210,6 +265,39 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Typography variant="caption" color="secondary" style={styles.priceNote}>
               * Prices may vary based on location
             </Typography>
+          </Card>
+        )}
+
+        {/* Recent Address Tooltip */}
+        {showAddressTooltip && recentAddress && (
+          <Card variant="default" padding="sm" style={styles.addressTooltip}>
+            <View style={styles.tooltipHeader}>
+              <View style={styles.tooltipTitleContainer}>
+                <Ionicons name="information-circle" size={16} color={theme.colors.primary.main} />
+                <Typography variant="caption" weight="semibold" style={styles.tooltipTitle}>
+                  Recent Address
+                </Typography>
+              </View>
+              <TouchableOpacity onPress={() => setShowAddressTooltip(false)}>
+                <Ionicons name="close" size={16} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.tooltipContent}>
+              <Typography variant="body2" weight="medium">
+                {recentAddress.label || 'Address'}
+              </Typography>
+              <Typography variant="caption" color="secondary">
+                {recentAddress.street}, {recentAddress.city}
+              </Typography>
+            </View>
+            <TouchableOpacity 
+              style={styles.tooltipButton}
+              onPress={() => navigation.navigate('SavedAddresses')}
+            >
+              <Typography variant="caption" color="brand" weight="medium">
+                Manage Addresses →
+              </Typography>
+            </TouchableOpacity>
           </Card>
         )}
         
@@ -428,6 +516,41 @@ const styles = StyleSheet.create({
   priceNote: {
     marginTop: theme.semanticSpacing.sm,
     fontStyle: 'italic',
+  },
+
+  addressTooltip: {
+    marginTop: theme.semanticSpacing.sm,
+    backgroundColor: theme.colors.status.info + '15',
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.primary.main,
+  },
+
+  tooltipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.semanticSpacing.xs,
+  },
+
+  tooltipTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.semanticSpacing.xs,
+  },
+
+  tooltipTitle: {
+    marginLeft: theme.semanticSpacing.xs,
+  },
+
+  tooltipContent: {
+    marginBottom: theme.semanticSpacing.xs,
+  },
+
+  tooltipButton: {
+    marginTop: theme.semanticSpacing.xs,
+    paddingTop: theme.semanticSpacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
   },
   
   greeting: {
