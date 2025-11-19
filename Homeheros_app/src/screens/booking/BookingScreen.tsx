@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -173,6 +173,14 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
   };
 
   const pricing = calculatePricing();
+
+  const selectedAddOnDetails = useMemo(
+    () =>
+      selectedAddOns
+        .map(addOnId => addOns.find(addOn => addOn.id === addOnId))
+        .filter(Boolean),
+    [selectedAddOns, addOns]
+  );
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -631,6 +639,21 @@ export const BookingScreen: React.FC<ScreenProps<'Booking'>> = ({
               <Typography variant="body1">${pricing.addOnTotal.toFixed(2)}</Typography>
             </View>
           )}
+
+          {selectedAddOnDetails.length > 0 && (
+            <View style={styles.addOnSummaryList}>
+              {selectedAddOnDetails.map(addOn => (
+                <View key={addOn.id} style={styles.addOnSummaryRow}>
+                  <Typography variant="body2" color="secondary">
+                    {addOn.name}
+                  </Typography>
+                  <Typography variant="body2" weight="medium">
+                    +${(addOn.price || 0).toFixed(2)}
+                  </Typography>
+                </View>
+              ))}
+            </View>
+          )}
           
           <View style={styles.pricingRow}>
             <Typography variant="body1">Subtotal</Typography>
@@ -849,6 +872,16 @@ const styles = StyleSheet.create({
   },
   instructionsInput: {
     minHeight: 80,
+  },
+  addOnSummaryList: {
+    marginTop: theme.semanticSpacing.xs,
+    marginBottom: theme.semanticSpacing.sm,
+    gap: theme.semanticSpacing.xs,
+  },
+  addOnSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   pricingCard: {
     ...theme.shadows.md,

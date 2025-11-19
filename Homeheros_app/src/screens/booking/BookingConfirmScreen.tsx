@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -26,55 +26,40 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
   const { bookingRequest, pricing } = route.params;
   const { user } = useAuth();
   
-  const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
-  const [availableHeroes, setAvailableHeroes] = useState<Hero[]>([]);
-  const [loadingHeroes, setLoadingHeroes] = useState(true);
 
   useEffect(() => {
     loadPaymentMethods();
-    loadAvailableHeroes();
   }, []);
 
-  const loadAvailableHeroes = async () => {
+  // Fetch add-on details for display
+  const [addOnDetails, setAddOnDetails] = useState<Array<{id: string; name: string; price: number}>>([]);
+
+  useEffect(() => {
+    if (bookingRequest.addOns && bookingRequest.addOns.length > 0) {
+      fetchAddOnDetails();
+    }
+  }, [bookingRequest.addOns]);
+
+  const fetchAddOnDetails = async () => {
     try {
-      setLoadingHeroes(true);
-      
-      // Fetch heroes from Supabase (using 'heros' table)
-      const { data: heroesData, error } = await supabase
-        .from('heros')
-        .select('*')
-        .eq('status', 'active')
-        .eq('verification_status', 'verified')
-        .order('rating_avg', { ascending: false });
+      const { data, error } = await supabase
+        .from('add_ons')
+        .select('id, name, price')
+        .in('id', bookingRequest.addOns);
 
-      if (error) {
-        console.error('Error loading heroes:', error);
-        return;
+      if (!error && data) {
+        setAddOnDetails(data.map(addOn => ({
+          id: addOn.id,
+          name: addOn.name,
+          price: parseFloat(addOn.price) || 0
+        })));
       }
-
-      // Transform Supabase data to match Hero interface
-      const transformedHeroes: Hero[] = heroesData.map((hero: any) => ({
-        id: hero.id,
-        name: hero.name,
-        rating: parseFloat(hero.rating_avg) || 0,
-        reviewCount: hero.rating_count || 0,
-        avatar: hero.photo_url,
-        skills: hero.skills || [], 
-        isAvailable: hero.status === 'active',
-        distance: Math.random() * 5 + 1, // Mock distance for now
-        priceMultiplier: 1.0 + (Math.random() * 0.2 - 0.1), // Random multiplier between 0.9-1.1
-        contractor_id: hero.contractor_id // Add contractor_id from database
-      }));
-
-      setAvailableHeroes(transformedHeroes);
     } catch (error) {
-      console.error('Error fetching heroes:', error);
-    } finally {
-      setLoadingHeroes(false);
+      console.error('Error fetching add-on details:', error);
     }
   };
 
@@ -90,42 +75,17 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
     }
   };
 
-  const handleHeroSelection = (hero: Hero) => {
-    setSelectedHero(hero);
-  };
 
   const handlePaymentMethodSelection = (method: PaymentMethod) => {
     setSelectedPaymentMethod(method);
   };
 
-  const calculateFinalPricing = () => {
-    const multiplier = selectedHero?.priceMultiplier ?? 1.0;
-    
-    // Use the actual base price from the booking request (which comes from database)
-    const basePrice = pricing.basePrice;
-    const adjustedBasePrice = basePrice * multiplier;
-    const adjustedSubtotal = adjustedBasePrice + pricing.callOutFee + pricing.addOnTotal;
-    const adjustedTax = adjustedSubtotal * 0.12;
-    const adjustedTotal = adjustedSubtotal + adjustedTax;
-
-    return {
-      ...pricing,
-      basePrice: adjustedBasePrice,
-      subtotal: adjustedSubtotal,
-      tax: adjustedTax,
-      total: adjustedTotal
-    };
-  };
-
-  const finalPricing = calculateFinalPricing();
+  // No hero price multiplier - use pricing as-is
+  const finalPricing = pricing;
 
   const handleConfirmBooking = async () => {
-    if (!selectedHero) {
-      Alert.alert('Error', 'Please select a service provider');
-      return;
-    }
-
-    if (!selectedPaymentMethod) {
+    // Payment method is optional for mock payment
+    if (!selectedPaymentMethod && paymentMethods.length > 0) {
       Alert.alert('Error', 'Please select a payment method');
       return;
     }
@@ -172,16 +132,16 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
         addressId = newAddress.id;
       }
 
-      // 2. Create booking with proper IDs
+      // 2. Create booking without hero assignment (will be assigned via admin tool)
       const bookingData = {
         customer_id: user.id,
-        contractor_id: selectedHero.contractor_id || '550e8400-e29b-41d4-a716-446655440000',
+        contractor_id: '550e8400-e29b-41d4-a716-446655440000', // Default contractor
         address_id: addressId,
         service_id: bookingRequest.serviceId,
         service_variant_id: bookingRequest.subcategoryId,
         service_name: bookingRequest.serviceName,
         variant_name: bookingRequest.variantName,
-        hero_id: selectedHero.id,
+        hero_id: null, // No hero assigned yet - will be assigned via admin tool
         customer_phone: bookingRequest.phoneNumber,
         status: 'requested',
         scheduled_at: new Date(bookingRequest.scheduledDate).toISOString(),
@@ -203,26 +163,80 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
         return;
       }
 
-      // 2. Create payment intent with proper booking ID
-      const paymentResult = await paymentService.createPaymentIntent(
-        Math.round(finalPricing.total * 100), // Convert to cents
-        'cad',
-        selectedPaymentMethod.id,
-        booking.id
-      );
+      // 2. Create mock payment record (Stripe integration coming soon)
+      if (selectedPaymentMethod) {
+        const paymentResult = await paymentService.createPaymentIntent(
+          Math.round(finalPricing.total * 100), // Convert to cents
+          'cad',
+          selectedPaymentMethod.id,
+          booking.id
+        );
 
-      if (!paymentResult.success) {
-        Alert.alert('Payment Error', paymentResult.error || 'Payment authorization failed');
-        return;
+        if (!paymentResult.success) {
+          Alert.alert('Payment Error', paymentResult.error || 'Payment authorization failed');
+          return;
+        }
+
+        // 3. Update payment record with booking ID
+        await supabase
+          .from('payments')
+          .update({ booking_id: booking.id })
+          .eq('payment_intent_id', paymentResult.paymentIntent?.id);
+      } else {
+        console.log('Mock payment - Stripe integration coming soon');
       }
 
-      // 3. Update payment record with booking ID
-      await supabase
-        .from('payments')
-        .update({ booking_id: booking.id })
-        .eq('payment_intent_id', paymentResult.paymentIntent?.id);
+      // 4. Insert add-ons if any were selected
+      if (bookingRequest.addOns && bookingRequest.addOns.length > 0) {
+        const { data: addOnDetails, error: addOnLookupError } = await supabase
+          .from('add_ons')
+          .select('id, price')
+          .in('id', bookingRequest.addOns);
 
-      // 4. Create initial status history
+        if (addOnLookupError) {
+          console.error('Error loading add-on pricing:', addOnLookupError);
+        }
+
+        const addOnPriceMap = new Map(
+          (addOnDetails || []).map(addOn => [addOn.id, parseFloat(addOn.price) || 0])
+        );
+
+        const addOnInserts = bookingRequest.addOns.map(addOnId => {
+          const unitPrice = addOnPriceMap.get(addOnId);
+          const quantity = 1;
+
+          if (unitPrice === undefined) {
+            console.error(
+              '[ADMIN FLAG] Missing price for add-on',
+              addOnId,
+              'during booking',
+              booking.id
+            );
+          }
+
+          const safeUnitPrice = unitPrice ?? 0;
+          return {
+            booking_id: booking.id,
+            add_on_id: addOnId,
+            quantity,
+            unit_price: safeUnitPrice,
+            total_price: safeUnitPrice * quantity
+          };
+        });
+
+        const { error: addOnsError } = await supabase
+          .from('booking_add_ons')
+          .insert(addOnInserts);
+
+        if (addOnsError) {
+          console.error('Error inserting add-ons:', addOnsError);
+          // Continue even if add-ons fail - booking is still created
+        } else {
+          console.log(`Inserted ${addOnInserts.length} add-ons for booking ${booking.id}`);
+        }
+      }
+
+      // 5. Create initial status history
       try {
         await supabase
           .from('booking_status_history')
@@ -271,53 +285,6 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
     }
   };
 
-  const renderHeroCard = (hero: Hero) => (
-    <TouchableOpacity
-      key={hero.id}
-      style={[
-        styles.heroCard,
-        selectedHero?.id === hero.id && styles.selectedHeroCard
-      ]}
-      onPress={() => handleHeroSelection(hero)}
-    >
-      <View style={styles.heroAvatar}>
-        <Typography variant="h5" color="inverse" weight="semibold">
-          {hero.name.split(' ').map(n => n[0]).join('')}
-        </Typography>
-      </View>
-      
-      <View style={styles.heroInfo}>
-        <Typography variant="body1" weight="semibold">
-          {hero.name}
-        </Typography>
-        
-        <View style={styles.heroRating}>
-          <Ionicons name="star" size={14} color="#FFD700" />
-          <Typography variant="body2" weight="medium" style={styles.ratingText}>
-            {hero.rating} ({hero.reviewCount} reviews)
-          </Typography>
-        </View>
-        
-        <Typography variant="caption" color="secondary">
-          {hero.distance} km away
-        </Typography>
-      </View>
-      
-      <View style={styles.heroPrice}>
-        {(hero.priceMultiplier ?? 1.0) !== 1.0 && (
-          <Typography variant="caption" color={(hero.priceMultiplier ?? 1.0) > 1 ? 'error' : 'success'}>
-            {(hero.priceMultiplier ?? 1.0) > 1 ? '+' : ''}{(((hero.priceMultiplier ?? 1.0) - 1) * 100).toFixed(0)}%
-          </Typography>
-        )}
-        
-        <View style={styles.heroSelection}>
-          {selectedHero?.id === hero.id && (
-            <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary.main} />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
 
   const renderPaymentMethodCard = (method: PaymentMethod) => (
     <TouchableOpacity
@@ -409,28 +376,19 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
           </View>
         </Card>
 
-        {/* Hero Selection */}
+        {/* Hero Assignment Notice */}
         <Card variant="default" padding="md" style={styles.sectionCard}>
-          <Typography variant="h6" weight="semibold" style={styles.sectionTitle}>
-            Choose Your Service Provider
-          </Typography>
-          
-          {loadingHeroes ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.colors.primary.main} />
-              <Typography variant="body2" color="secondary" style={styles.loadingText}>
-                Loading available service providers...
+          <View style={styles.heroNotice}>
+            <Ionicons name="information-circle" size={24} color={theme.colors.info.main} />
+            <View style={styles.heroNoticeText}>
+              <Typography variant="body1" weight="semibold">
+                Service Provider Assignment
               </Typography>
-            </View>
-          ) : availableHeroes.length > 0 ? (
-            availableHeroes.map(renderHeroCard)
-          ) : (
-            <View style={styles.noHeroesContainer}>
               <Typography variant="body2" color="secondary">
-                No service providers available at this time.
+                A qualified service provider will be assigned to your booking shortly after confirmation.
               </Typography>
             </View>
-          )}
+          </View>
         </Card>
 
         {/* Payment Method */}
@@ -450,9 +408,15 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
             paymentMethods.map(renderPaymentMethodCard)
           ) : (
             <View style={styles.noPaymentMethods}>
-              <Typography variant="body2" color="secondary">
-                No payment methods found. Using mock payment for demo.
-              </Typography>
+              <View style={styles.mockPaymentNotice}>
+                <Ionicons name="card-outline" size={32} color={theme.colors.warning.main} />
+                <Typography variant="body1" weight="semibold" style={styles.mockPaymentTitle}>
+                  Mock Payment
+                </Typography>
+                <Typography variant="body2" color="secondary" align="center">
+                  Stripe integration coming soon. For now, bookings use mock payment processing.
+                </Typography>
+              </View>
             </View>
           )}
         </Card>
@@ -479,6 +443,21 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
             <View style={styles.pricingRow}>
               <Typography variant="body1">Add-ons</Typography>
               <Typography variant="body1">${finalPricing.addOnTotal.toFixed(2)}</Typography>
+            </View>
+          )}
+
+          {addOnDetails.length > 0 && (
+            <View style={styles.addOnSummaryList}>
+              {addOnDetails.map(addOn => (
+                <View key={addOn.id} style={styles.addOnSummaryRow}>
+                  <Typography variant="body2" color="secondary">
+                    {addOn.name}
+                  </Typography>
+                  <Typography variant="body2" weight="medium">
+                    +${(addOn.price || 0).toFixed(2)}
+                  </Typography>
+                </View>
+              ))}
             </View>
           )}
           
@@ -643,6 +622,31 @@ const styles = StyleSheet.create({
   },
   noHeroesContainer: {
     paddingVertical: theme.semanticSpacing.md,
+    alignItems: 'center',
+  },
+  heroNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.semanticSpacing.sm,
+  },
+  heroNoticeText: {
+    flex: 1,
+  },
+  mockPaymentNotice: {
+    alignItems: 'center',
+    gap: theme.semanticSpacing.sm,
+  },
+  mockPaymentTitle: {
+    marginTop: theme.semanticSpacing.xs,
+  },
+  addOnSummaryList: {
+    marginTop: theme.semanticSpacing.xs,
+    marginBottom: theme.semanticSpacing.sm,
+    gap: theme.semanticSpacing.xs,
+  },
+  addOnSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   pricingCard: {

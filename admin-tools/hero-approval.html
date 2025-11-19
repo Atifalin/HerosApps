@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hero Profile Approval - HomeHeros Admin</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #FF6B35;
+        }
+
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filters select, .filters button {
+            padding: 10px 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .filters button {
+            background: #FF6B35;
+            color: white;
+            border: none;
+            font-weight: 600;
+        }
+
+        .filters button:hover {
+            background: #e55a2b;
+        }
+
+        .profiles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .profile-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+
+        .profile-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .profile-header h2 {
+            margin-bottom: 5px;
+        }
+
+        .profile-header .email {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .profile-body {
+            padding: 20px;
+        }
+
+        .profile-info {
+            margin-bottom: 15px;
+        }
+
+        .profile-info label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .profile-info .value {
+            color: #333;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        .badge.pending {
+            background: #FFF3CD;
+            color: #856404;
+        }
+
+        .badge.verified {
+            background: #D4EDDA;
+            color: #155724;
+        }
+
+        .badge.rejected {
+            background: #F8D7DA;
+            color: #721C24;
+        }
+
+        .badge.active {
+            background: #D1ECF1;
+            color: #0C5460;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-approve {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background: #218838;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background: #c82333;
+        }
+
+        .btn-view {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-view:hover {
+            background: #0056b3;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .empty-state {
+            background: white;
+            padding: 60px 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .empty-state h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #666;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 600;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            display: none;
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
+        .toast.active {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🦸 Hero Profile Approval</h1>
+            <p>Review and approve hero applications for HomeHeros</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Pending Approval</h3>
+                <div class="number" id="pendingCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Verified Heroes</h3>
+                <div class="number" id="verifiedCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Users</h3>
+                <div class="number" id="totalCount">0</div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <select id="statusFilter">
+                <option value="all">All Statuses</option>
+                <option value="pending" selected>Pending</option>
+                <option value="verified">Verified</option>
+                <option value="rejected">Rejected</option>
+            </select>
+            <button onclick="loadProfiles()">🔄 Refresh</button>
+            <button onclick="showCreateModal()">➕ Create Hero Profile</button>
+        </div>
+
+        <div id="profilesContainer" class="loading">
+            Loading profiles...
+        </div>
+    </div>
+
+    <!-- Create Hero Modal -->
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <h3>Create Hero Profile</h3>
+            <div class="form-group">
+                <label>User Email</label>
+                <input type="email" id="userEmail" placeholder="Enter user email">
+            </div>
+            <div class="form-group">
+                <label>Hero Name</label>
+                <input type="text" id="heroName" placeholder="Enter hero name">
+            </div>
+            <div class="form-group">
+                <label>Contractor (Optional)</label>
+                <select id="contractorId">
+                    <option value="">-- Use Default Contractor --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Categories (comma-separated)</label>
+                <input type="text" id="categories" placeholder="Cleaning, Handyman, Moving">
+            </div>
+            <div class="form-group">
+                <label>Skills (comma-separated)</label>
+                <input type="text" id="skills" placeholder="cleaning, handyman, moving">
+            </div>
+            <div class="form-group">
+                <label>Bio</label>
+                <textarea id="bio" placeholder="Enter hero bio"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-approve" onclick="createHeroProfile()">Create</button>
+                <button class="btn btn-reject" onclick="closeCreateModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://vttzuaerdwagipyocpha.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dHp1YWVyZHdhZ2lweW9jcGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0Nzc1NDMsImV4cCI6MjA3NDA1MzU0M30.-QyK-_-jrVowVoMFy8IpCeVaeP59VNUCZtRmTD6Pfwc';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let contractors = [];
+
+        // Initialize
+        async function init() {
+            await loadContractors();
+            await loadProfiles();
+        }
+
+        // Load contractors for dropdown
+        async function loadContractors() {
+            const { data, error } = await supabase
+                .from('contractors')
+                .select('id, name')
+                .eq('status', 'active');
+
+            if (error) {
+                console.error('Error loading contractors:', error);
+                return;
+            }
+
+            contractors = data || [];
+            const select = document.getElementById('contractorId');
+            select.innerHTML = contractors.map(c => 
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+        }
+
+        // Load profiles
+        async function loadProfiles() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const container = document.getElementById('profilesContainer');
+            container.className = 'loading';
+            container.innerHTML = 'Loading profiles...';
+
+            try {
+                // Get all users with hero role
+                let query = supabase
+                    .from('profiles')
+                    .select(`
+                        id,
+                        email,
+                        name,
+                        role,
+                        status,
+                        created_at
+                    `)
+                    .eq('role', 'hero');
+
+                const { data: profiles, error: profilesError } = await query;
+
+                if (profilesError) throw profilesError;
+
+                // Get hero profiles
+                const { data: heroes, error: heroesError } = await supabase
+                    .from('heros')
+                    .select(`
+                        id,
+                        user_id,
+                        contractor_id,
+                        name,
+                        alias,
+                        skills,
+                        categories,
+                        rating_avg,
+                        rating_count,
+                        bio,
+                        badges,
+                        status,
+                        verification_status,
+                        contractors (name)
+                    `);
+
+                if (heroesError) throw heroesError;
+
+                // Merge data
+                const mergedData = profiles.map(profile => {
+                    const hero = heroes.find(h => h.user_id === profile.id);
+                    return {
+                        ...profile,
+                        hero: hero || null
+                    };
+                });
+
+                // Filter by status
+                let filteredData = mergedData;
+                if (statusFilter !== 'all') {
+                    filteredData = mergedData.filter(p => 
+                        p.hero ? p.hero.verification_status === statusFilter : statusFilter === 'pending'
+                    );
+                }
+
+                // Update stats
+                updateStats(mergedData);
+
+                // Render profiles
+                if (filteredData.length === 0) {
+                    container.className = '';
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No profiles found</h3>
+                            <p>No hero profiles match the current filter</p>
+                        </div>
+                    `;
+                } else {
+                    container.className = 'profiles-grid';
+                    container.innerHTML = filteredData.map(renderProfileCard).join('');
+                }
+            } catch (error) {
+                console.error('Error loading profiles:', error);
+                container.className = '';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Error loading profiles</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Update stats
+        function updateStats(profiles) {
+            const pending = profiles.filter(p => !p.hero || p.hero.verification_status === 'pending').length;
+            const verified = profiles.filter(p => p.hero && p.hero.verification_status === 'verified').length;
+            
+            document.getElementById('pendingCount').textContent = pending;
+            document.getElementById('verifiedCount').textContent = verified;
+            document.getElementById('totalCount').textContent = profiles.length;
+        }
+
+        // Render profile card
+        function renderProfileCard(profile) {
+            const hero = profile.hero;
+            const hasHeroProfile = !!hero;
+            const verificationStatus = hero ? hero.verification_status : 'pending';
+
+            return `
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <h2>${profile.name || 'Unnamed'}</h2>
+                        <div class="email">${profile.email}</div>
+                    </div>
+                    <div class="profile-body">
+                        ${hasHeroProfile ? `
+                            <div class="profile-info">
+                                <label>Hero Name</label>
+                                <div class="value">${hero.name}</div>
+                            </div>
+                            <div class="profile-info">
+                                <label>Contractor</label>
+                                <div class="value">${hero.contractors?.name || 'N/A'}</div>
+                            </div>
+                            <div class="profile-info">
+                                <label>Categories</label>
+                                <div class="value">
+                                    ${hero.categories?.map(c => `<span class="badge active">${c}</span>`).join('') || 'None'}
+                                </div>
+                            </div>
+                            <div class="profile-info">
+                                <label>Status</label>
+                                <div class="value">
+                                    <span class="badge ${verificationStatus}">${verificationStatus}</span>
+                                    <span class="badge ${hero.status}">${hero.status}</span>
+                                </div>
+                            </div>
+                            <div class="profile-info">
+                                <label>Rating</label>
+                                <div class="value">⭐ ${hero.rating_avg?.toFixed(1) || '0.0'} (${hero.rating_count || 0} reviews)</div>
+                            </div>
+                        ` : `
+                            <div class="profile-info">
+                                <label>Status</label>
+                                <div class="value">
+                                    <span class="badge pending">No Hero Profile</span>
+                                </div>
+                            </div>
+                            <div class="profile-info">
+                                <label>Note</label>
+                                <div class="value">User has hero role but no hero profile created yet.</div>
+                            </div>
+                        `}
+                        <div class="profile-actions">
+                            ${hasHeroProfile ? `
+                                ${verificationStatus === 'pending' ? `
+                                    <button class="btn btn-approve" onclick="approveHero('${hero.id}', '${profile.email}')">✓ Approve</button>
+                                    <button class="btn btn-reject" onclick="rejectHero('${hero.id}', '${profile.email}')">✗ Reject</button>
+                                ` : `
+                                    <button class="btn btn-view" onclick="viewHero('${hero.id}')">👁 View Details</button>
+                                `}
+                            ` : `
+                                <button class="btn btn-approve" onclick="createHeroForUser('${profile.id}', '${profile.email}', '${profile.name}')">➕ Create Profile</button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Approve hero
+        async function approveHero(heroId, email) {
+            if (!confirm(`Approve hero profile for ${email}?`)) return;
+
+            // First, check if contractor_id is missing and set default if needed
+            const { data: heroData } = await supabase
+                .from('heros')
+                .select('contractor_id')
+                .eq('id', heroId)
+                .single();
+
+            const updateData = {
+                verification_status: 'verified',
+                status: 'active'
+            };
+
+            // If no contractor, set default contractor
+            if (!heroData?.contractor_id) {
+                updateData.contractor_id = '550e8400-e29b-41d4-a716-446655440000'; // Default contractor
+            }
+
+            const { error } = await supabase
+                .from('heros')
+                .update(updateData)
+                .eq('id', heroId);
+
+            if (error) {
+                showToast('Error approving hero: ' + error.message, 'error');
+            } else {
+                showToast('Hero approved successfully!', 'success');
+                await loadProfiles();
+            }
+        }
+
+        // Reject hero
+        async function rejectHero(heroId, email) {
+            const reason = prompt(`Reject hero profile for ${email}?\n\nEnter rejection reason:`);
+            if (!reason) return;
+
+            const { error } = await supabase
+                .from('heros')
+                .update({ 
+                    verification_status: 'rejected',
+                    status: 'inactive'
+                })
+                .eq('id', heroId);
+
+            if (error) {
+                showToast('Error rejecting hero: ' + error.message, 'error');
+            } else {
+                showToast('Hero rejected', 'error');
+                await loadProfiles();
+            }
+        }
+
+        // View hero details
+        function viewHero(heroId) {
+            alert('View details feature - coming soon!');
+        }
+
+        // Show create modal
+        function showCreateModal() {
+            document.getElementById('createModal').classList.add('active');
+        }
+
+        // Close create modal
+        function closeCreateModal() {
+            document.getElementById('createModal').classList.remove('active');
+        }
+
+        // Create hero for existing user
+        async function createHeroForUser(userId, email, name) {
+            document.getElementById('userEmail').value = email;
+            document.getElementById('heroName').value = name || email.split('@')[0];
+            showCreateModal();
+        }
+
+        // Create hero profile
+        async function createHeroProfile() {
+            const email = document.getElementById('userEmail').value;
+            const heroName = document.getElementById('heroName').value;
+            const contractorId = document.getElementById('contractorId').value;
+            const categories = document.getElementById('categories').value.split(',').map(s => s.trim()).filter(Boolean);
+            const skills = document.getElementById('skills').value.split(',').map(s => s.trim()).filter(Boolean);
+            const bio = document.getElementById('bio').value;
+
+            if (!email || !heroName) {
+                showToast('Please fill in email and hero name', 'error');
+                return;
+            }
+
+            try {
+                // Get user by email
+                const { data: profiles, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('id, role')
+                    .eq('email', email)
+                    .single();
+
+                if (profileError) throw new Error('User not found');
+
+                // Update role to hero if needed
+                if (profiles.role !== 'hero') {
+                    const { error: updateError } = await supabase
+                        .from('profiles')
+                        .update({ role: 'hero' })
+                        .eq('id', profiles.id);
+
+                    if (updateError) throw updateError;
+                }
+
+                // Create hero profile with default contractor if not provided
+                const { error: heroError } = await supabase
+                    .from('heros')
+                    .insert({
+                        user_id: profiles.id,
+                        contractor_id: contractorId || '550e8400-e29b-41d4-a716-446655440000', // Default contractor
+                        name: heroName,
+                        alias: heroName.toLowerCase().replace(/\s+/g, ''),
+                        skills: skills,
+                        categories: categories,
+                        rating_avg: 0,
+                        rating_count: 0,
+                        bio: bio || 'New hero ready to help!',
+                        badges: [],
+                        status: 'active',
+                        verification_status: 'pending'
+                    });
+
+                if (heroError) throw heroError;
+
+                showToast('Hero profile created successfully!', 'success');
+                closeCreateModal();
+                await loadProfiles();
+            } catch (error) {
+                showToast('Error creating hero: ' + error.message, 'error');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} active`;
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 3000);
+        }
+
+        // Event listeners
+        document.getElementById('statusFilter').addEventListener('change', loadProfiles);
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

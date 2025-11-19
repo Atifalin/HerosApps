@@ -240,26 +240,34 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
     switch (status) {
       case 'requested':
         return {
-          title: 'Awaiting Hero Assignment',
+          title: 'Booking Requested',
           description: 'We\'re finding the perfect service provider for you',
           icon: 'hourglass-outline' as keyof typeof Ionicons.glyphMap,
           color: theme.colors.warning.main,
           showProgress: true
         };
-      case 'confirmed':
+      case 'awaiting_hero_accept':
         return {
-          title: 'Booking Confirmed',
-          description: 'Your service provider has been assigned',
-          icon: 'checkmark-circle-outline' as keyof typeof Ionicons.glyphMap,
-          color: theme.colors.success.main,
-          showProgress: false
+          title: 'Hero Assigned',
+          description: 'A service provider has been assigned and will confirm shortly',
+          icon: 'person-outline' as keyof typeof Ionicons.glyphMap,
+          color: theme.colors.info.main,
+          showProgress: true
         };
-      case 'en_route':
+      case 'enroute':
         return {
           title: 'Provider En Route',
-          description: 'Your service provider is on their way',
+          description: 'Your service provider is on their way. GPS tracking is active.',
           icon: 'car-outline' as keyof typeof Ionicons.glyphMap,
           color: theme.colors.info.main,
+          showProgress: false
+        };
+      case 'arrived':
+        return {
+          title: 'Provider Arrived',
+          description: 'Your service provider has arrived at your location',
+          icon: 'location-outline' as keyof typeof Ionicons.glyphMap,
+          color: theme.colors.success.main,
           showProgress: false
         };
       case 'in_progress':
@@ -278,7 +286,24 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
           color: theme.colors.success.main,
           showProgress: false
         };
-      case 'cancelled':
+      case 'rated':
+        return {
+          title: 'Service Rated',
+          description: 'Thank you for your feedback!',
+          icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
+          color: theme.colors.success.main,
+          showProgress: false
+        };
+      case 'declined':
+        return {
+          title: 'Booking Declined',
+          description: 'The service provider declined. We\'re finding another provider for you.',
+          icon: 'close-circle-outline' as keyof typeof Ionicons.glyphMap,
+          color: theme.colors.warning.main,
+          showProgress: true
+        };
+      case 'cancelled_by_customer':
+      case 'cancelled_by_admin':
         return {
           title: 'Booking Cancelled',
           description: 'This booking has been cancelled',
@@ -286,10 +311,18 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
           color: theme.colors.error.main,
           showProgress: false
         };
+      case 'expired':
+        return {
+          title: 'Booking Expired',
+          description: 'This booking has expired',
+          icon: 'time-outline' as keyof typeof Ionicons.glyphMap,
+          color: theme.colors.error.main,
+          showProgress: false
+        };
       default:
         return {
           title: 'Unknown Status',
-          description: 'Status unknown',
+          description: `Status: ${status}`,
           icon: 'help-circle-outline' as keyof typeof Ionicons.glyphMap,
           color: theme.colors.text.secondary,
           showProgress: false

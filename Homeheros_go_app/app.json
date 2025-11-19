@@ -52,6 +52,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-secure-store",
       [
         "expo-location",
         {
@@ -60,28 +61,7 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "HomeHeros Go needs camera access to allow you to take before/after photos and verify your identity."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "HomeHeros Go needs access to your photos to allow you to upload photos for job documentation."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#ffffff"
-        }
-      ],
-      "expo-task-manager",
-      "expo-background-fetch",
-      "@supabase/auth-ui-react-native"
+      "expo-font"
     ],
     "extra": {
       "eas": {

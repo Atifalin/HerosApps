@@ -83,7 +83,7 @@ export const BookingHistoryScreen: React.FC<BookingHistoryScreenProps> = ({ navi
           hero_id,
           services (id, title),
           service_variants (id, name),
-          heros!bookings_hero_id_fkey (id, name)
+          heros:fk_bookings_hero (id, name)
         `)
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false });

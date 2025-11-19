@@ -41,12 +41,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [recentAddress, setRecentAddress] = useState<any>(null);
   const [showAddressTooltip, setShowAddressTooltip] = useState(false);
+  const [activeBooking, setActiveBooking] = useState<any>(null);
 
   // Fetch services from Supabase
   useEffect(() => {
     fetchServicesFromSupabase();
     fetchRecentAddress();
+    fetchActiveBooking();
   }, []);
+
+  const fetchActiveBooking = async () => {
+    if (!user?.id) return;
+
+    try {
+      console.log('Fetching active bookings for user:', user.id);
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          status,
+          scheduled_at,
+          services (title),
+          heros:fk_bookings_hero (name, photo_url)
+        `)
+        .eq('customer_id', user.id)
+        .in('status', ['awaiting_hero_accept', 'enroute', 'arrived', 'in_progress'])
+        .order('scheduled_at', { ascending: true })
+        .limit(1)
+        .single();
+
+      if (error) {
+        if (error.code !== 'PGRST116') { // PGRST116 = no rows found
+          console.error('Error fetching active booking:', error);
+        }
+        setActiveBooking(null);
+        return;
+      }
+
+      if (data) {
+        console.log('Active booking found:', data);
+        setActiveBooking(data);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setActiveBooking(null);
+    }
+  };
 
   const fetchRecentAddress = async () => {
     if (!user?.id) return;
@@ -300,6 +341,61 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </Typography>
             </TouchableOpacity>
           </Card>
+        )}
+
+        {/* Active Booking Card */}
+        {activeBooking && (
+          <TouchableOpacity 
+            style={styles.activeBookingCard}
+            onPress={() => navigation.navigate('BookingStatus', { bookingId: activeBooking.id })}
+          >
+            <LinearGradient
+              colors={['#FF6B35', '#FF8C5A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.activeBookingGradient}
+            >
+              <View style={styles.activeBookingHeader}>
+                <View style={styles.activeBookingIcon}>
+                  <Ionicons name="car" size={20} color="#fff" />
+                </View>
+                <View style={styles.activeBookingInfo}>
+                  <Typography variant="body2" style={styles.activeBookingTitle}>
+                    Active Booking
+                  </Typography>
+                  <Typography variant="h6" style={styles.activeBookingService}>
+                    {activeBooking.services?.title || 'Service'}
+                  </Typography>
+                </View>
+              </View>
+              
+              <View style={styles.activeBookingStatus}>
+                <View style={styles.statusBadge}>
+                  <View style={styles.statusDot} />
+                  <Typography variant="caption" style={styles.statusText}>
+                    {activeBooking.status === 'enroute' ? 'En Route' : 
+                     activeBooking.status === 'arrived' ? 'Arrived' :
+                     activeBooking.status === 'in_progress' ? 'In Progress' :
+                     'Awaiting Hero'}
+                  </Typography>
+                </View>
+                
+                {activeBooking.heros && (
+                  <View style={styles.heroInfo}>
+                    <Typography variant="caption" style={styles.heroName}>
+                      {activeBooking.heros.name}
+                    </Typography>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.activeBookingFooter}>
+                <Typography variant="caption" style={styles.viewDetailsText}>
+                  Tap to view details →
+                </Typography>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
         )}
         
         <Typography variant="body1" color="secondary" style={styles.subtitle}>
@@ -573,6 +669,102 @@ const styles = StyleSheet.create({
     paddingTop: theme.semanticSpacing.xs,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border.light,
+  },
+
+  activeBookingCard: {
+    marginTop: theme.semanticSpacing.md,
+    marginBottom: theme.semanticSpacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.lg,
+  },
+
+  activeBookingGradient: {
+    padding: theme.semanticSpacing.lg,
+  },
+
+  activeBookingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.semanticSpacing.md,
+  },
+
+  activeBookingIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.semanticSpacing.md,
+  },
+
+  activeBookingInfo: {
+    flex: 1,
+  },
+
+  activeBookingTitle: {
+    color: '#fff',
+    opacity: 0.9,
+    marginBottom: 4,
+  },
+
+  activeBookingService: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+
+  activeBookingStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.semanticSpacing.md,
+  },
+
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+    marginRight: 6,
+  },
+
+  statusText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  heroInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  heroName: {
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.9,
+  },
+
+  activeBookingFooter: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    paddingTop: theme.semanticSpacing.sm,
+  },
+
+  viewDetailsText: {
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.9,
   },
   
   greeting: {
