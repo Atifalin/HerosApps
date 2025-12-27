@@ -19,6 +19,8 @@ import { BookingStatusScreen } from '../screens/booking/BookingStatusScreen';
 import { BookingHistoryScreen } from '../screens/account/BookingHistoryScreen';
 import { SavedAddressesScreen } from '../screens/account/SavedAddressesScreen';
 import { ProfileScreen } from '../screens/account/ProfileScreen';
+import { SupportScreen } from '../screens/support/SupportScreen';
+import { ChatScreen } from '../screens/support/ChatScreen';
 import { theme } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -197,6 +199,22 @@ export const AppNavigator: React.FC = () => {
           <Stack.Screen 
             name="Profile" 
             component={ProfileScreen as React.ComponentType<any>} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
+            }}
+          />
+          <Stack.Screen 
+            name="Support" 
+            component={SupportScreen as React.ComponentType<any>} 
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right'
+            }}
+          />
+          <Stack.Screen 
+            name="Chat" 
+            component={ChatScreen as React.ComponentType<any>} 
             options={{
               headerShown: false,
               animation: 'slide_from_right'

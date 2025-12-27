@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,6 +19,7 @@
       "bundleIdentifier": "com.homeheros.provider",
       "buildNumber": "1.0.0",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "HomeHeros Go needs your location to navigate to job locations and provide accurate ETA to customers.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "HomeHeros Go needs your location to track your position during active jobs and provide accurate ETA to customers.",
         "NSLocationAlwaysUsageDescription": "HomeHeros Go needs your location to track your position during active jobs and provide accurate ETA to customers.",
@@ -45,7 +46,12 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -65,7 +71,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "e7aed344-037c-4703-afb2-381670e0ff6a"
       }
     }
   }

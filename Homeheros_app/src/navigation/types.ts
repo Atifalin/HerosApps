@@ -135,6 +135,12 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   BookingHistory: undefined;
   HelpCenter: undefined;
+  SavedAddresses: undefined;
+  Support: undefined;
+  Chat: {
+    category?: string;
+    initialMessage?: string;
+  };
 };
 
 export type AuthStackParamList = {

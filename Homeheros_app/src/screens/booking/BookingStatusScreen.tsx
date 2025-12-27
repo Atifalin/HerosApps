@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Button, Card } from '../../components/ui';
+import { LiveMap } from '../../components/LiveMap';
 import { theme } from '../../theme';
 import { ScreenProps, Booking } from '../../navigation/types';
 import { supabase } from '../../lib/supabase';
@@ -236,6 +237,48 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
     });
   };
 
+  // Helper function to check if current status is after a given status
+  const isStatusAfter = (currentStatus: string, checkStatus: string): boolean => {
+    const statusOrder = ['requested', 'awaiting_hero_accept', 'enroute', 'arrived', 'in_progress', 'completed'];
+    const currentIndex = statusOrder.indexOf(currentStatus);
+    const checkIndex = statusOrder.indexOf(checkStatus);
+    return currentIndex > checkIndex;
+  };
+
+  // Render horizontal timeline item
+  const renderHorizontalTimelineItem = (
+    label: string, 
+    icon: keyof typeof Ionicons.glyphMap, 
+    isActive: boolean, 
+    isCompleted: boolean,
+    isLast: boolean
+  ) => (
+    <View key={label} style={styles.horizontalTimelineItem}>
+      <View style={styles.horizontalTimelineDot}>
+        <View style={[
+          styles.timelineDot,
+          isCompleted && styles.timelineDotCompleted,
+          isActive && styles.timelineDotActive
+        ]}>
+          {isCompleted ? (
+            <Ionicons name="checkmark" size={10} color="#fff" />
+          ) : (
+            <View style={styles.timelineDotInner} />
+          )}
+        </View>
+        {!isLast && <View style={styles.horizontalTimelineLine} />}
+      </View>
+      <Typography 
+        variant="caption" 
+        weight={isActive ? 'semibold' : 'regular'}
+        color={isCompleted || isActive ? 'primary' : 'secondary'}
+        style={styles.horizontalTimelineLabel}
+      >
+        {label}
+      </Typography>
+    </View>
+  );
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'requested':
@@ -398,6 +441,17 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
         </View>
 
         <TouchableOpacity
+          style={styles.chatButton}
+          onPress={() => navigation.navigate('Support')}
+        >
+          <Ionicons 
+            name="chatbubble-ellipses-outline" 
+            size={24} 
+            color={theme.colors.text.primary}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.refreshButton}
           onPress={handleRefresh}
         >
@@ -432,17 +486,85 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
             </View>
           </View>
 
-          {statusInfo.showProgress && (
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <View style={styles.progressFill} />
-              </View>
-              <Typography variant="caption" color="secondary" style={styles.progressText}>
-                Estimated assignment time: 5-15 minutes
-              </Typography>
-            </View>
-          )}
+          {/* Horizontal Timeline */}
+          <View style={styles.horizontalTimeline}>
+            {renderHorizontalTimelineItem('Requested', 'checkmark-circle', true, booking.status === 'requested' || isStatusAfter(booking.status as string, 'requested'), false)}
+            {renderHorizontalTimelineItem('Assigned', 'person', (booking.status as any) === 'awaiting_hero_accept', isStatusAfter(booking.status as string, 'awaiting_hero_accept'), false)}
+            {renderHorizontalTimelineItem('En Route', 'car', (booking.status as any) === 'enroute', isStatusAfter(booking.status as string, 'enroute'), false)}
+            {renderHorizontalTimelineItem('Arrived', 'location', (booking.status as any) === 'arrived', isStatusAfter(booking.status as string, 'arrived'), false)}
+            {renderHorizontalTimelineItem('In Progress', 'construct', booking.status === 'in_progress', isStatusAfter(booking.status as string, 'in_progress'), false)}
+            {renderHorizontalTimelineItem('Done', 'checkmark-done-circle', booking.status === 'completed', false, true)}
+          </View>
         </Card>
+
+        {/* Live GPS Map */}
+        {(booking.status as any) === 'enroute' && booking.request.address && (
+          <Card variant="default" padding="md" style={styles.mapCard}>
+            <Typography variant="h6" weight="semibold" style={styles.sectionTitle}>
+              Live Tracking
+            </Typography>
+            <LiveMap
+              bookingId={booking.id}
+              customerLat={booking.request.address.coordinates?.latitude || 0}
+              customerLng={booking.request.address.coordinates?.longitude || 0}
+              customerAddress={booking.request.address.street}
+            />
+          </Card>
+        )}
+
+        {/* Hero Information & Contact (only show if hero is assigned) */}
+        {booking.hero && (
+          <Card variant="default" padding="md" style={styles.heroCard}>
+            <Typography variant="h6" weight="semibold" style={styles.sectionTitle}>
+              Your Service Provider
+            </Typography>
+            
+            <View style={styles.heroInfo}>
+              <View style={styles.heroAvatar}>
+                <Ionicons name="person" size={32} color={theme.colors.primary.main} />
+              </View>
+              
+              <View style={styles.heroDetails}>
+                <Typography variant="h6" weight="semibold">
+                  {booking.hero?.name || 'Service Provider'}
+                </Typography>
+                {booking.hero?.rating && (
+                  <View style={styles.ratingContainer}>
+                    <Ionicons name="star" size={16} color="#FFB800" />
+                    <Typography variant="body2" style={styles.ratingText}>
+                      {booking.hero.rating.toFixed(1)} ({booking.hero.reviewCount || 0} reviews)
+                    </Typography>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Contact Buttons */}
+            {((booking.status as any) === 'enroute' || (booking.status as any) === 'arrived' || booking.status === 'in_progress') && (
+              <View style={styles.contactButtons}>
+                <TouchableOpacity 
+                  style={styles.contactButton}
+                  onPress={() => Linking.openURL(`tel:${booking.request.phoneNumber || ''}`)}
+                >
+                  <Ionicons name="call" size={20} color="#fff" />
+                  <Typography variant="body2" style={styles.contactButtonText}>
+                    Call
+                  </Typography>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.contactButton}
+                  onPress={() => Linking.openURL(`sms:${booking.request.phoneNumber || ''}`)}
+                >
+                  <Ionicons name="chatbubble" size={20} color="#fff" />
+                  <Typography variant="body2" style={styles.contactButtonText}>
+                    Message
+                  </Typography>
+                </TouchableOpacity>
+              </View>
+            )}
+          </Card>
+        )}
 
         {/* Service Details */}
         <Card variant="default" padding="md" style={styles.detailsCard}>
@@ -624,6 +746,10 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
+  },
+  chatButton: {
+    padding: theme.semanticSpacing.xs,
+    marginRight: theme.semanticSpacing.xs,
   },
   refreshButton: {
     padding: theme.semanticSpacing.xs,
@@ -814,5 +940,109 @@ const styles = StyleSheet.create({
   },
   errorButton: {
     marginTop: theme.semanticSpacing.lg,
+  },
+  horizontalTimeline: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.semanticSpacing.lg,
+    paddingTop: theme.semanticSpacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+  },
+  horizontalTimelineItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  horizontalTimelineDot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: theme.semanticSpacing.xs,
+  },
+  timelineDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: theme.colors.neutral[300],
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  timelineDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+  },
+  timelineDotCompleted: {
+    backgroundColor: theme.colors.success.main,
+  },
+  timelineDotActive: {
+    backgroundColor: theme.colors.primary.main,
+  },
+  horizontalTimelineLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: theme.colors.neutral[300],
+    marginLeft: -10,
+    zIndex: 1,
+  },
+  horizontalTimelineLabel: {
+    fontSize: 10,
+    textAlign: 'center',
+  },
+  mapCard: {
+    marginBottom: theme.semanticSpacing.md,
+    ...theme.shadows.sm,
+  },
+  trackingIndicator: {
+    alignItems: 'center',
+    paddingVertical: theme.semanticSpacing.lg,
+  },
+  trackingIconContainer: {
+    marginBottom: theme.semanticSpacing.md,
+  },
+  trackingText: {
+    marginTop: theme.semanticSpacing.sm,
+    marginBottom: theme.semanticSpacing.md,
+  },
+  trackingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${theme.colors.primary.main}15`,
+    paddingHorizontal: theme.semanticSpacing.md,
+    paddingVertical: theme.semanticSpacing.sm,
+    borderRadius: theme.borderRadius.full,
+    gap: theme.semanticSpacing.xs,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.primary.main,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  contactButtons: {
+    flexDirection: 'row',
+    gap: theme.semanticSpacing.md,
+    marginTop: theme.semanticSpacing.md,
+  },
+  contactButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary.main,
+    paddingVertical: theme.semanticSpacing.md,
+    borderRadius: theme.borderRadius.lg,
+    gap: theme.semanticSpacing.xs,
+  },
+  contactButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });

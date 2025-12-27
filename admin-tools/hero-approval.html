@@ -475,24 +475,7 @@
             container.innerHTML = 'Loading profiles...';
 
             try {
-                // Get all users with hero role
-                let query = supabase
-                    .from('profiles')
-                    .select(`
-                        id,
-                        email,
-                        name,
-                        role,
-                        status,
-                        created_at
-                    `)
-                    .eq('role', 'hero');
-
-                const { data: profiles, error: profilesError } = await query;
-
-                if (profilesError) throw profilesError;
-
-                // Get hero profiles
+                // Get all hero profiles with user info via join
                 const { data: heroes, error: heroesError } = await supabase
                     .from('heros')
                     .select(`
@@ -512,16 +495,59 @@
                         contractors (name)
                     `);
 
+                console.log('Heroes loaded:', heroes, heroesError);
                 if (heroesError) throw heroesError;
 
-                // Merge data
-                const mergedData = profiles.map(profile => {
-                    const hero = heroes.find(h => h.user_id === profile.id);
+                // Get profiles for these heroes
+                const userIds = heroes.map(h => h.user_id).filter(Boolean);
+                let profiles = [];
+                
+                if (userIds.length > 0) {
+                    const { data: profileData, error: profilesError } = await supabase
+                        .from('profiles')
+                        .select('id, email, name, role, status, created_at')
+                        .in('id', userIds);
+                    
+                    console.log('Profiles loaded:', profileData, profilesError);
+                    if (profilesError) throw profilesError;
+                    profiles = profileData || [];
+                }
+
+                // Also get hero role users without hero profile
+                const { data: heroRoleUsers, error: heroRoleError } = await supabase
+                    .from('profiles')
+                    .select('id, email, name, role, status, created_at')
+                    .eq('role', 'hero');
+                
+                console.log('Hero role users:', heroRoleUsers, heroRoleError);
+                
+                // Merge: start with heroes and add profile info
+                const mergedData = heroes.map(hero => {
+                    const profile = profiles.find(p => p.id === hero.user_id) || 
+                                   heroRoleUsers?.find(p => p.id === hero.user_id);
                     return {
-                        ...profile,
-                        hero: hero || null
+                        id: profile?.id || hero.user_id,
+                        email: profile?.email || 'Unknown',
+                        name: profile?.name || hero.name,
+                        role: profile?.role || 'hero',
+                        status: profile?.status || 'active',
+                        hero: hero
                     };
                 });
+
+                // Add hero role users without hero profile
+                if (heroRoleUsers) {
+                    heroRoleUsers.forEach(user => {
+                        if (!mergedData.find(m => m.id === user.id)) {
+                            mergedData.push({
+                                ...user,
+                                hero: null
+                            });
+                        }
+                    });
+                }
+
+                console.log('Merged data:', mergedData);
 
                 // Filter by status
                 let filteredData = mergedData;
@@ -629,7 +655,8 @@
                                     <button class="btn btn-view" onclick="viewHero('${hero.id}')">👁 View Details</button>
                                 `}
                             ` : `
-                                <button class="btn btn-approve" onclick="createHeroForUser('${profile.id}', '${profile.email}', '${profile.name}')">➕ Create Profile</button>
+                                <button class="btn btn-approve" onclick="quickApproveUser('${profile.id}', '${profile.email}', '${profile.name || ''}')">✓ Quick Approve</button>
+                                <button class="btn btn-view" onclick="createHeroForUser('${profile.id}', '${profile.email}', '${profile.name || ''}')">➕ Custom Profile</button>
                             `}
                         </div>
                     </div>
@@ -707,7 +734,46 @@
             document.getElementById('createModal').classList.remove('active');
         }
 
-        // Create hero for existing user
+        // Quick approve - create hero profile and approve in one click
+        async function quickApproveUser(userId, email, name) {
+            if (!confirm(`Quick approve hero for ${email}?\n\nThis will create a hero profile with default settings and approve immediately.`)) return;
+
+            try {
+                // Handle null/undefined/empty name - derive from email
+                const heroName = (name && name !== 'null' && name !== 'undefined' && name.trim()) 
+                    ? name 
+                    : email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                
+                // Create hero profile with defaults and immediately verify
+                const { data: heroData, error: heroError } = await supabase
+                    .from('heros')
+                    .insert({
+                        user_id: userId,
+                        contractor_id: contractors[0]?.id || '550e8400-e29b-41d4-a716-446655440000',
+                        name: heroName,
+                        alias: heroName.toLowerCase().replace(/\s+/g, ''),
+                        skills: ['cleaning', 'handyman'],
+                        categories: ['Cleaning', 'Handyman'],
+                        rating_avg: 0,
+                        rating_count: 0,
+                        bio: 'Ready to help with home services!',
+                        badges: [],
+                        status: 'active',
+                        verification_status: 'verified'
+                    })
+                    .select()
+                    .single();
+
+                if (heroError) throw heroError;
+
+                showToast(`Hero ${heroName} approved successfully!`, 'success');
+                await loadProfiles();
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // Create hero for existing user (with custom options)
         async function createHeroForUser(userId, email, name) {
             document.getElementById('userEmail').value = email;
             document.getElementById('heroName').value = name || email.split('@')[0];

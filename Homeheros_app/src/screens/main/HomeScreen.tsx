@@ -48,7 +48,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     fetchServicesFromSupabase();
     fetchRecentAddress();
     fetchActiveBooking();
-  }, []);
+
+    // Subscribe to real-time booking updates
+    if (user?.id) {
+      const subscription = supabase
+        .channel(`bookings-${user.id}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `customer_id=eq.${user.id}`
+        }, (payload) => {
+          console.log('Booking update received:', payload);
+          fetchActiveBooking(); // Refresh active booking when any booking changes
+        })
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, [user?.id]);
 
   const fetchActiveBooking = async () => {
     if (!user?.id) return;
@@ -232,6 +252,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     Alert.alert('Coming Soon', 'Notifications feature will be available soon!');
   };
 
+  const handleChatPress = () => {
+    // Navigate to support chat
+    navigation.navigate('Support');
+  };
+
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       <View style={styles.headerContent}>
@@ -251,6 +276,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               onPress={handleNotificationPress}
             >
               <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleChatPress}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={24} color={theme.colors.text.primary} />
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -343,61 +375,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Active Booking Card */}
-        {activeBooking && (
-          <TouchableOpacity 
-            style={styles.activeBookingCard}
-            onPress={() => navigation.navigate('BookingStatus', { bookingId: activeBooking.id })}
-          >
-            <LinearGradient
-              colors={['#FF6B35', '#FF8C5A']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.activeBookingGradient}
-            >
-              <View style={styles.activeBookingHeader}>
-                <View style={styles.activeBookingIcon}>
-                  <Ionicons name="car" size={20} color="#fff" />
-                </View>
-                <View style={styles.activeBookingInfo}>
-                  <Typography variant="body2" style={styles.activeBookingTitle}>
-                    Active Booking
-                  </Typography>
-                  <Typography variant="h6" style={styles.activeBookingService}>
-                    {activeBooking.services?.title || 'Service'}
-                  </Typography>
-                </View>
-              </View>
-              
-              <View style={styles.activeBookingStatus}>
-                <View style={styles.statusBadge}>
-                  <View style={styles.statusDot} />
-                  <Typography variant="caption" style={styles.statusText}>
-                    {activeBooking.status === 'enroute' ? 'En Route' : 
-                     activeBooking.status === 'arrived' ? 'Arrived' :
-                     activeBooking.status === 'in_progress' ? 'In Progress' :
-                     'Awaiting Hero'}
-                  </Typography>
-                </View>
-                
-                {activeBooking.heros && (
-                  <View style={styles.heroInfo}>
-                    <Typography variant="caption" style={styles.heroName}>
-                      {activeBooking.heros.name}
-                    </Typography>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.activeBookingFooter}>
-                <Typography variant="caption" style={styles.viewDetailsText}>
-                  Tap to view details →
-                </Typography>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-        
         <Typography variant="body1" color="secondary" style={styles.subtitle}>
           What service do you need today?
         </Typography>
@@ -556,6 +533,62 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
       >
         {renderSearchBar()}
+        
+        {/* Active Booking Card */}
+        {activeBooking && (
+          <TouchableOpacity 
+            style={styles.activeBookingCard}
+            onPress={() => navigation.navigate('BookingStatus', { bookingId: activeBooking.id })}
+          >
+            <LinearGradient
+              colors={['#FF6B35', '#FF8C5A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.activeBookingGradient}
+            >
+              <View style={styles.activeBookingHeader}>
+                <View style={styles.activeBookingIcon}>
+                  <Ionicons name="car" size={20} color="#fff" />
+                </View>
+                <View style={styles.activeBookingInfo}>
+                  <Typography variant="body2" style={styles.activeBookingTitle}>
+                    Active Booking
+                  </Typography>
+                  <Typography variant="h6" style={styles.activeBookingService}>
+                    {activeBooking.services?.title || 'Service'}
+                  </Typography>
+                </View>
+              </View>
+              
+              <View style={styles.activeBookingStatus}>
+                <View style={styles.statusBadge}>
+                  <View style={styles.statusDot} />
+                  <Typography variant="caption" style={styles.statusText}>
+                    {activeBooking.status === 'enroute' ? 'En Route' : 
+                     activeBooking.status === 'arrived' ? 'Arrived' :
+                     activeBooking.status === 'in_progress' ? 'In Progress' :
+                     'Awaiting Hero'}
+                  </Typography>
+                </View>
+                
+                {activeBooking.heros && (
+                  <View style={styles.heroInfo}>
+                    <Typography variant="caption" style={styles.heroName}>
+                      {activeBooking.heros.name}
+                    </Typography>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.activeBookingFooter}>
+                <Typography variant="caption" style={styles.viewDetailsText}>
+                  Tap to view details →
+                </Typography>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+        
         {renderServiceCategories()}
         {renderQuickActions()}
         
@@ -672,31 +705,32 @@ const styles = StyleSheet.create({
   },
 
   activeBookingCard: {
+    marginHorizontal: theme.semanticSpacing.screenPadding,
     marginTop: theme.semanticSpacing.md,
     marginBottom: theme.semanticSpacing.md,
-    borderRadius: theme.borderRadius.xl,
+    borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
-    ...theme.shadows.lg,
+    ...theme.shadows.md,
   },
 
   activeBookingGradient: {
-    padding: theme.semanticSpacing.lg,
+    padding: theme.semanticSpacing.md,
   },
 
   activeBookingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.semanticSpacing.md,
+    marginBottom: theme.semanticSpacing.sm,
   },
 
   activeBookingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: theme.semanticSpacing.md,
+    marginRight: theme.semanticSpacing.sm,
   },
 
   activeBookingInfo: {
@@ -706,41 +740,43 @@ const styles = StyleSheet.create({
   activeBookingTitle: {
     color: '#fff',
     opacity: 0.9,
-    marginBottom: 4,
+    marginBottom: 2,
+    fontSize: 11,
   },
 
   activeBookingService: {
     color: '#fff',
     fontWeight: '600',
+    fontSize: 15,
   },
 
   activeBookingStatus: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.semanticSpacing.md,
+    marginBottom: theme.semanticSpacing.sm,
   },
 
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
   },
 
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#4CAF50',
-    marginRight: 6,
+    marginRight: 4,
   },
 
   statusText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
 
@@ -751,20 +787,22 @@ const styles = StyleSheet.create({
 
   heroName: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     opacity: 0.9,
   },
 
   activeBookingFooter: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
-    paddingTop: theme.semanticSpacing.sm,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+    paddingTop: theme.semanticSpacing.xs,
+    marginTop: theme.semanticSpacing.xs,
   },
 
   viewDetailsText: {
     color: '#fff',
     textAlign: 'center',
-    opacity: 0.9,
+    opacity: 0.85,
+    fontSize: 11,
   },
   
   greeting: {

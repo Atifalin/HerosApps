@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomeHeros CSR Chat Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4A5D23;
+            --primary-light: #6B7F3A;
+            --success: #4CAF50;
+            --warning: #FF9800;
+            --error: #F44336;
+            --info: #2196F3;
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #FAFAFA;
+            --text-primary: #212121;
+            --text-secondary: #757575;
+            --border: #E0E0E0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr 400px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        /* Header */
+        .header {
+            grid-column: 1 / -1;
+            background: var(--primary);
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .agent-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        /* Conversations List */
+        .conversations-panel {
+            background: var(--bg-primary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .filter-tab {
+            padding: 0.375rem 0.75rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .conversations-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .conversation-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .conversation-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .conversation-item.active {
+            background: #E8EDD8;
+            border-left: 3px solid var(--primary);
+        }
+
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .customer-name {
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .conversation-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .conversation-preview {
+            font-size: 0.813rem;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .conversation-meta {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.688rem;
+            font-weight: 500;
+        }
+
+        .badge.open { background: #E3F2FD; color: #1976D2; }
+        .badge.assigned { background: #FFF3E0; color: #F57C00; }
+        .badge.resolved { background: #E8F5E9; color: #388E3C; }
+        .badge.urgent { background: #FFEBEE; color: #D32F2F; }
+        .badge.high { background: #FFF3E0; color: #F57C00; }
+
+        /* Chat Panel */
+        .chat-panel {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+        }
+
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-customer-info h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .chat-customer-info p {
+            font-size: 0.813rem;
+            color: var(--text-secondary);
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-light);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg-secondary);
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: #F5F5F5;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .message.customer {
+            flex-direction: row;
+        }
+
+        .message.agent {
+            flex-direction: row-reverse;
+        }
+
+        .message.ai, .message.system {
+            flex-direction: row;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .message.customer .message-avatar {
+            background: #2196F3;
+            color: white;
+        }
+
+        .message.agent .message-avatar {
+            background: var(--primary);
+            color: white;
+        }
+
+        .message.ai .message-avatar {
+            background: #9C27B0;
+            color: white;
+        }
+
+        .message.system .message-avatar {
+            background: #757575;
+            color: white;
+        }
+
+        .message-content {
+            max-width: 70%;
+        }
+
+        .message-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .message.customer .message-bubble {
+            background: white;
+            border: 1px solid var(--border);
+        }
+
+        .message.agent .message-bubble {
+            background: var(--primary);
+            color: white;
+        }
+
+        .message.ai .message-bubble {
+            background: #F3E5F5;
+            border: 1px solid #CE93D8;
+        }
+
+        .message.system .message-bubble {
+            background: #EEEEEE;
+            font-style: italic;
+            font-size: 0.813rem;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .message-image {
+            max-width: 300px;
+            border-radius: 8px;
+            margin-top: 0.5rem;
+        }
+
+        .input-container {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            background: white;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-family: inherit;
+            resize: none;
+            max-height: 120px;
+        }
+
+        .input-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--border);
+        }
+
+        .icon-btn.send {
+            background: var(--primary);
+            color: white;
+        }
+
+        .icon-btn.send:hover {
+            background: var(--primary-light);
+        }
+
+        /* Customer Info Panel */
+        .info-panel {
+            background: var(--bg-primary);
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .info-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .info-section h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-card {
+            background: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            font-size: 0.875rem;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+        }
+
+        .info-value {
+            font-weight: 500;
+        }
+
+        .booking-item {
+            background: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            border-left: 3px solid var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .booking-service {
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .booking-details {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .ai-scripts-editor {
+            margin-top: 1rem;
+        }
+
+        .script-item {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border: 1px solid var(--border);
+        }
+
+        .script-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .script-category {
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .script-keywords {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .script-response {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.813rem;
+            font-family: inherit;
+            min-height: 80px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 0.75rem 1rem;
+            background: white;
+            border-radius: 12px;
+            width: fit-content;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                opacity: 0.3;
+            }
+            30% {
+                opacity: 1;
+            }
+        }
+
+        .quick-replies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .quick-reply-btn {
+            padding: 0.375rem 0.75rem;
+            background: white;
+            border: 1px solid var(--primary);
+            border-radius: 16px;
+            font-size: 0.813rem;
+            color: var(--primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-reply-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🏠 HomeHeros CSR Dashboard</h1>
+            <div class="agent-status">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span id="agentName">Agent Online</span>
+                </div>
+                <button class="btn btn-outline" onclick="signOut()" style="color: white; border-color: rgba(255,255,255,0.3);">Sign Out</button>
+            </div>
+        </div>
+
+        <!-- Conversations List -->
+        <div class="conversations-panel">
+            <div class="panel-header">
+                <h2>Conversations</h2>
+                <input type="text" class="search-box" placeholder="Search conversations..." id="searchBox">
+                <div class="filter-tabs">
+                    <button class="filter-tab active" onclick="filterConversations('all')">All</button>
+                    <button class="filter-tab" onclick="filterConversations('open')">Open</button>
+                    <button class="filter-tab" onclick="filterConversations('assigned')">Assigned</button>
+                    <button class="filter-tab" onclick="filterConversations('urgent')">Urgent</button>
+                </div>
+            </div>
+            <div class="conversations-list" id="conversationsList">
+                <div class="empty-state">
+                    <p>Loading conversations...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Panel -->
+        <div class="chat-panel">
+            <div class="chat-header" id="chatHeader">
+                <div class="chat-customer-info">
+                    <h3>Select a conversation</h3>
+                    <p>Choose a conversation from the list to start chatting</p>
+                </div>
+            </div>
+            <div class="messages-container" id="messagesContainer">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                    <p>No conversation selected</p>
+                </div>
+            </div>
+            <div class="input-container" id="inputContainer" style="display: none;">
+                <div class="input-wrapper">
+                    <textarea class="message-input" id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                    <div class="input-actions">
+                        <button class="icon-btn" onclick="attachImage()" title="Attach image">📎</button>
+                        <button class="icon-btn send" onclick="sendMessage()" title="Send message">➤</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Info Panel -->
+        <div class="info-panel" id="infoPanel">
+            <div class="info-section">
+                <h3>Customer Information</h3>
+                <div class="info-card" id="customerInfo">
+                    <p style="text-align: center; color: var(--text-secondary);">Select a conversation to view customer details</p>
+                </div>
+            </div>
+
+            <div class="info-section" id="bookingsSection" style="display: none;">
+                <h3>Recent Bookings</h3>
+                <div id="recentBookings"></div>
+            </div>
+
+            <div class="info-section">
+                <h3>AI Scripts Manager</h3>
+                <button class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;" onclick="loadAIScripts()">Load Scripts</button>
+                <div id="aiScriptsContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://vttzuaerdwagipyocpha.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dHp1YWVyZHdhZ2lweW9jcGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0Nzc1NDMsImV4cCI6MjA3NDA1MzU0M30.-QyK-_-jrVowVoMFy8IpCeVaeP59VNUCZtRmTD6Pfwc';
+        
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentConversation = null;
+        let currentAgent = null;
+        let messageSubscription = null;
+        let conversationsSubscription = null;
+
+        // Initialize
+        async function init() {
+            // TESTING MODE - Skip authentication
+            currentAgent = {
+                id: 'test-agent-id',
+                email: 'test-agent@homeheros.com'
+            };
+            document.getElementById('agentName').textContent = 'Test Agent (No Auth)';
+            loadConversations();
+            subscribeToConversations();
+            
+            /* PRODUCTION MODE - Uncomment for authentication
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            if (!session) {
+                await promptLogin();
+            } else {
+                currentAgent = session.user;
+                document.getElementById('agentName').textContent = session.user.email;
+                loadConversations();
+                subscribeToConversations();
+            }
+            */
+        }
+
+        // Login prompt
+        async function promptLogin() {
+            const email = prompt('Enter your email:');
+            const password = prompt('Enter your password:');
+            
+            if (email && password) {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                
+                if (error) {
+                    alert('Login failed: ' + error.message);
+                    promptLogin();
+                } else {
+                    currentAgent = data.user;
+                    document.getElementById('agentName').textContent = data.user.email;
+                    loadConversations();
+                    subscribeToConversations();
+                }
+            }
+        }
+
+        // Sign out
+        async function signOut() {
+            await supabaseClient.auth.signOut();
+            location.reload();
+        }
+
+        // Load conversations
+        async function loadConversations(filter = 'all') {
+            let query = supabaseClient
+                .from('support_conversations')
+                .select('*')
+                .order('last_message_at', { ascending: false });
+
+            if (filter !== 'all') {
+                if (filter === 'urgent') {
+                    query = query.eq('priority', 'urgent');
+                } else {
+                    query = query.eq('status', filter);
+                }
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error('Error loading conversations:', error);
+                return;
+            }
+
+            displayConversations(data);
+        }
+
+        // Display conversations
+        function displayConversations(conversations) {
+            const container = document.getElementById('conversationsList');
+            
+            if (!conversations || conversations.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No conversations found</p></div>';
+                return;
+            }
+
+            container.innerHTML = conversations.map(conv => `
+                <div class="conversation-item ${currentConversation?.id === conv.id ? 'active' : ''}" 
+                     onclick="selectConversation('${conv.id}')">
+                    <div class="conversation-header">
+                        <div class="customer-name">${conv.customer_name || 'Unknown Customer'}</div>
+                        <div class="conversation-time">${formatTime(conv.last_message_at)}</div>
+                    </div>
+                    <div class="conversation-preview">${conv.category || 'General inquiry'}</div>
+                    <div class="conversation-meta">
+                        <span class="badge ${conv.status}">${conv.status}</span>
+                        ${conv.priority !== 'normal' ? `<span class="badge ${conv.priority}">${conv.priority}</span>` : ''}
+                        ${!conv.ai_handled ? '<span class="badge urgent">Agent Requested</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Select conversation
+        async function selectConversation(conversationId) {
+            const { data, error } = await supabaseClient
+                .from('support_conversations')
+                .select('*')
+                .eq('id', conversationId)
+                .single();
+
+            if (error) {
+                console.error('Error loading conversation:', error);
+                return;
+            }
+
+            currentConversation = data;
+            
+            // Update UI with dynamic buttons based on status
+            const isResolved = data.status === 'resolved';
+            document.getElementById('chatHeader').innerHTML = `
+                <div class="chat-customer-info">
+                    <h3>${data.customer_name || 'Unknown Customer'}</h3>
+                    <p>${data.customer_email || ''} ${data.customer_phone ? '• ' + data.customer_phone : ''}</p>
+                </div>
+                <div class="chat-actions">
+                    ${!isResolved ? `
+                        <button class="btn btn-outline" onclick="assignToMe()">Assign to Me</button>
+                        <button class="btn btn-primary" onclick="resolveConversation()">Resolve</button>
+                    ` : `
+                        <button class="btn btn-outline" onclick="unresolveConversation()">Reopen</button>
+                    `}
+                </div>
+            `;
+
+            document.getElementById('inputContainer').style.display = 'block';
+
+            // Load messages
+            loadMessages(conversationId);
+
+            // Load customer info
+            loadCustomerInfo(data);
+
+            // Subscribe to new messages
+            subscribeToMessages(conversationId);
+
+            // Mark as read
+            markAsRead(conversationId);
+        }
+
+        // Load messages
+        async function loadMessages(conversationId) {
+            const { data, error } = await supabaseClient
+                .from('support_messages')
+                .select('*')
+                .eq('conversation_id', conversationId)
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                console.error('Error loading messages:', error);
+                return;
+            }
+
+            displayMessages(data);
+        }
+
+        // Display messages
+        function displayMessages(messages) {
+            const container = document.getElementById('messagesContainer');
+            
+            container.innerHTML = messages.map(msg => {
+                const senderClass = msg.sender_type;
+                const initials = msg.sender_name ? msg.sender_name.split(' ').map(n => n[0]).join('') : msg.sender_type.charAt(0).toUpperCase();
+                
+                return `
+                    <div class="message ${senderClass}">
+                        <div class="message-avatar">${initials}</div>
+                        <div class="message-content">
+                            <div class="message-bubble">
+                                ${msg.message_text || ''}
+                                ${msg.image_url ? `<img src="${msg.image_url}" class="message-image" />` : ''}
+                            </div>
+                            <div class="message-time">${formatTime(msg.created_at)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            
+            if (!text || !currentConversation) return;
+
+            const { error } = await supabaseClient
+                .from('support_messages')
+                .insert({
+                    conversation_id: currentConversation.id,
+                    sender_id: null, // Set to null for testing without auth
+                    sender_type: 'agent',
+                    sender_name: currentAgent.email,
+                    message_text: text,
+                    message_type: 'text'
+                });
+
+            if (error) {
+                console.error('Error sending message:', error);
+                alert('Failed to send message: ' + error.message);
+                return;
+            }
+
+            input.value = '';
+            input.style.height = 'auto';
+        }
+
+        // Subscribe to messages
+        function subscribeToMessages(conversationId) {
+            if (messageSubscription) {
+                supabaseClient.removeChannel(messageSubscription);
+            }
+
+            messageSubscription = supabaseClient
+                .channel(`conversation-${conversationId}`)
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'support_messages',
+                    filter: `conversation_id=eq.${conversationId}`
+                }, (payload) => {
+                    loadMessages(conversationId);
+                })
+                .subscribe();
+        }
+
+        // Subscribe to conversations
+        function subscribeToConversations() {
+            conversationsSubscription = supabaseClient
+                .channel('conversations')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'support_conversations'
+                }, () => {
+                    loadConversations();
+                })
+                .subscribe();
+        }
+
+        // Load customer info
+        function loadCustomerInfo(conversation) {
+            const context = conversation.customer_context || {};
+            
+            document.getElementById('customerInfo').innerHTML = `
+                <div class="info-row">
+                    <span class="info-label">Name:</span>
+                    <span class="info-value">${conversation.customer_name || 'N/A'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email:</span>
+                    <span class="info-value">${conversation.customer_email || 'N/A'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Phone:</span>
+                    <span class="info-value">${conversation.customer_phone || 'N/A'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Total Bookings:</span>
+                    <span class="info-value">${context.total_bookings || 0}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Last Booking:</span>
+                    <span class="info-value">${context.last_booking_date ? formatDate(context.last_booking_date) : 'None'}</span>
+                </div>
+            `;
+
+            // Display recent bookings
+            if (context.recent_bookings && context.recent_bookings.length > 0) {
+                document.getElementById('bookingsSection').style.display = 'block';
+                document.getElementById('recentBookings').innerHTML = context.recent_bookings.map(booking => `
+                    <div class="booking-item">
+                        <div class="booking-service">${booking.services?.title || 'Service'}</div>
+                        <div class="booking-details">
+                            ${booking.service_variants?.name || ''} • ${booking.status}
+                            <br>$${(booking.price_cents / 100).toFixed(2)} • ${formatDate(booking.scheduled_at)}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Load AI Scripts
+        async function loadAIScripts() {
+            const { data, error } = await supabaseClient
+                .from('support_ai_scripts')
+                .select('*')
+                .order('priority', { ascending: false });
+
+            if (error) {
+                console.error('Error loading AI scripts:', error);
+                return;
+            }
+
+            displayAIScripts(data);
+        }
+
+        // Display AI Scripts
+        function displayAIScripts(scripts) {
+            const container = document.getElementById('aiScriptsContainer');
+            
+            container.innerHTML = scripts.map(script => `
+                <div class="script-item">
+                    <div class="script-header">
+                        <span class="script-category">${script.category}</span>
+                        <label>
+                            <input type="checkbox" ${script.is_active ? 'checked' : ''} 
+                                   onchange="toggleScript('${script.id}', this.checked)">
+                            Active
+                        </label>
+                    </div>
+                    <div class="script-keywords">
+                        Keywords: ${script.trigger_keywords.join(', ')}
+                    </div>
+                    <textarea class="script-response" 
+                              onblur="updateScript('${script.id}', this.value)">${script.response_template}</textarea>
+                </div>
+            `).join('');
+        }
+
+        // Toggle script
+        async function toggleScript(scriptId, isActive) {
+            const { error } = await supabaseClient
+                .from('support_ai_scripts')
+                .update({ is_active: isActive })
+                .eq('id', scriptId);
+
+            if (error) {
+                console.error('Error toggling script:', error);
+            }
+        }
+
+        // Update script
+        async function updateScript(scriptId, responseTemplate) {
+            const { error } = await supabaseClient
+                .from('support_ai_scripts')
+                .update({ response_template: responseTemplate })
+                .eq('id', scriptId);
+
+            if (error) {
+                console.error('Error updating script:', error);
+            }
+        }
+
+        // Assign conversation to current agent
+        async function assignToMe() {
+            if (!currentConversation) return;
+
+            const { error } = await supabaseClient
+                .from('support_conversations')
+                .update({
+                    agent_id: null, // Set to null for testing
+                    agent_name: currentAgent.email,
+                    status: 'assigned'
+                })
+                .eq('id', currentConversation.id);
+
+            if (error) {
+                console.error('Error assigning conversation:', error);
+                alert('Failed to assign: ' + error.message);
+                return;
+            }
+
+            alert('Conversation assigned to you');
+            currentConversation.status = 'assigned';
+            loadConversations();
+            selectConversation(currentConversation.id);
+        }
+
+        // Resolve conversation
+        async function resolveConversation() {
+            if (!currentConversation) return;
+
+            const { error } = await supabaseClient
+                .from('support_conversations')
+                .update({
+                    status: 'resolved',
+                    resolved_at: new Date().toISOString()
+                })
+                .eq('id', currentConversation.id);
+
+            if (error) {
+                console.error('Error resolving conversation:', error);
+                alert('Failed to resolve: ' + error.message);
+                return;
+            }
+
+            alert('Conversation marked as resolved');
+            currentConversation.status = 'resolved';
+            loadConversations();
+            selectConversation(currentConversation.id);
+        }
+
+        // Unresolve conversation
+        async function unresolveConversation() {
+            if (!currentConversation) return;
+
+            const { error } = await supabaseClient
+                .from('support_conversations')
+                .update({
+                    status: 'open',
+                    resolved_at: null
+                })
+                .eq('id', currentConversation.id);
+
+            if (error) {
+                console.error('Error unresolving conversation:', error);
+                alert('Failed to unresolve: ' + error.message);
+                return;
+            }
+
+            alert('Conversation reopened');
+            currentConversation.status = 'open';
+            loadConversations();
+            selectConversation(currentConversation.id);
+        }
+
+        // Mark messages as read
+        async function markAsRead(conversationId) {
+            await supabaseClient
+                .from('support_messages')
+                .update({ read_at: new Date().toISOString() })
+                .eq('conversation_id', conversationId)
+                .neq('sender_type', 'agent')
+                .is('read_at', null);
+        }
+
+        // Filter conversations
+        function filterConversations(filter) {
+            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            loadConversations(filter);
+        }
+
+        // Utility functions
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+            return date.toLocaleDateString();
+        }
+
+        function formatDate(timestamp) {
+            return new Date(timestamp).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
+        // Auto-resize textarea
+        document.addEventListener('DOMContentLoaded', () => {
+            const textarea = document.getElementById('messageInput');
+            if (textarea) {
+                textarea.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = this.scrollHeight + 'px';
+                });
+
+                textarea.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+
+            init();
+        });
+
+        // Attach image (placeholder)
+        function attachImage() {
+            alert('Image upload feature - integrate with file picker');
+        }
+    </script>
+</body>
+</html>
