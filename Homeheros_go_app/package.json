@@ -1,6 +1,6 @@
 {
   "name": "homeheros_go_app",
-  "version": "1.0.0",
+  "version": "0.05",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",

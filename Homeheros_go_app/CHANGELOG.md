@@ -2,7 +2,7 @@
 
 All notable changes to the HomeHeros GO service provider app will be documented in this file.
 
-## [1.0.0] - 2026-04-19
+## [0.05] - 2026-04-19
 
 ### 🎉 Major Features Added
 
@@ -154,7 +154,7 @@ Migration applied: `20260419_add_legal_acceptance_fields.sql`
 
 ## Version History
 
-### [1.0.0] - 2026-04-19
+### [0.05] - 2026-04-19
 - Initial release with legal acceptance and background check flow
 - Complete onboarding system for service providers
 - Database schema updates for compliance tracking

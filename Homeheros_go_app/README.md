@@ -214,5 +214,5 @@ For technical issues or questions, contact the development team.
 ---
 
 **Last Updated:** April 19, 2026
-**Version:** 1.0.0
+**Version:** 0.05
 **Platform:** iOS & Android (React Native)
