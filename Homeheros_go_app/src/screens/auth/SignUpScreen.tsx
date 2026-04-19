@@ -12,14 +12,24 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 
-const SignUpScreen = ({ navigation }: any) => {
+const SignUpScreen = ({ navigation, route }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signUp } = useAuth();
+  
+  // Get legal acceptance data from navigation params
+  const legalAcceptance = route.params?.legalAcceptance;
 
   const handleSignUp = async () => {
+    // Validate legal acceptance
+    if (!legalAcceptance) {
+      Alert.alert('Error', 'Legal agreements must be accepted before signing up.');
+      navigation.navigate('LegalAcceptance');
+      return;
+    }
+
     if (!email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -36,18 +46,16 @@ const SignUpScreen = ({ navigation }: any) => {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password);
+    
+    // Navigate to background check immediately (before signup completes)
+    // This ensures navigation happens before auth state changes
+    navigation.navigate('BackgroundCheck', {
+      email: email,
+      legalAcceptance: legalAcceptance,
+      password: password,
+    });
+    
     setLoading(false);
-
-    if (error) {
-      Alert.alert('Sign Up Failed', error.message || 'An error occurred');
-    } else {
-      Alert.alert(
-        'Success',
-        'Account created successfully! You can now sign in.',
-        [{ text: 'OK', onPress: () => navigation.navigate('SignIn') }]
-      );
-    }
   };
 
   return (

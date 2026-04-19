@@ -76,7 +76,7 @@ const SignInScreen = ({ navigation }: any) => {
 
           <TouchableOpacity
             style={styles.linkButton}
-            onPress={() => navigation.navigate('SignUp')}
+            onPress={() => navigation.navigate('LegalAcceptance')}
             disabled={loading}
           >
             <Text style={styles.linkText}>
