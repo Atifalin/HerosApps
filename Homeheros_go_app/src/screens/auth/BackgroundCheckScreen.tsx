@@ -47,10 +47,15 @@ const BackgroundCheckScreen: React.FC<BackgroundCheckScreenProps> = ({ navigatio
         throw new Error('Signup failed - no user returned');
       }
 
+      // Check if email confirmation is required (no session returned)
+      const needsConfirmation = !data.session;
+
       // Wait a moment for the trigger to create profile
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Update profile with role as hero and legal acceptance timestamps
+      // Note: With email confirmation enabled, updates may fail due to RLS
+      // until user confirms email. We'll try anyway - trigger may have created profile.
       const updateData: any = {
         role: 'hero', // Set role to hero for GO app
       };
@@ -67,12 +72,12 @@ const BackgroundCheckScreen: React.FC<BackgroundCheckScreenProps> = ({ navigatio
         .eq('id', data.user.id);
 
       if (updateError) {
-        console.error('Error updating profile:', updateError);
+        console.error('Error updating profile (expected if email confirmation required):', updateError);
       } else {
         console.log('Profile updated: role set to hero, legal acceptance timestamps saved');
       }
 
-      return { success: true };
+      return { success: true, needsConfirmation };
     } catch (err: any) {
       console.error('Signup error:', err);
       return { success: false, error: err.message };
@@ -98,6 +103,12 @@ const BackgroundCheckScreen: React.FC<BackgroundCheckScreenProps> = ({ navigatio
     
     if (!result.success) {
       Alert.alert('Error', result.error || 'Failed to complete signup');
+      return;
+    }
+
+    // If email confirmation is required, navigate to confirmation screen
+    if (result.needsConfirmation) {
+      navigation.navigate('EmailConfirmation', { email });
       return;
     }
 
@@ -130,6 +141,12 @@ const BackgroundCheckScreen: React.FC<BackgroundCheckScreenProps> = ({ navigatio
             
             if (!result.success) {
               Alert.alert('Error', result.error || 'Failed to complete signup');
+              return;
+            }
+
+            // If email confirmation is required, navigate to confirmation screen
+            if (result.needsConfirmation) {
+              navigation.navigate('EmailConfirmation', { email });
               return;
             }
             

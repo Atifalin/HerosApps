@@ -3,6 +3,7 @@
     "name": "HomeHeros",
     "slug": "homeheros",
     "version": "0.05",
+    "scheme": "homeheros",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

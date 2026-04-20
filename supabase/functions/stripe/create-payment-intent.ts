@@ -1,107 +1,126 @@
-// Supabase Edge Function for creating a Stripe payment intent
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
-import Stripe from 'https://esm.sh/stripe@14.5.0?target=deno'
+// Supabase Edge Function for creating a Stripe PaymentIntent
+// Deployed as: stripe-payment-intent
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import Stripe from "https://esm.sh/stripe@14.5.0?target=deno";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
-serve(async (req) => {
-  // Handle CORS preflight requests
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Get request body
-    const { bookingId, paymentMethodId } = await req.json()
+    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+    if (!stripeSecretKey) {
+      return new Response(
+        JSON.stringify({ error: 'Stripe not configured on server' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
-    // Initialize Stripe
-    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+    const stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2023-10-16',
-    })
+    });
 
-    // Get booking details
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .select('*, services(*), customer_id')
-      .eq('id', bookingId)
-      .single()
-
-    if (bookingError || !booking) {
+    // Get the authorization header to identify the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Booking not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Get customer details
-    const { data: customer, error: customerError } = await supabase
-      .from('users')
-      .select('email, name')
-      .eq('id', booking.customer_id)
-      .single()
+    // Initialize Supabase client with the user's JWT
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    if (customerError || !customer) {
+    // Verify the user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Customer not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Create payment intent
+    const body = await req.json();
+    const { amount_cents, currency, booking_id, customer_email } = body;
+
+    // Validate required fields
+    if (!amount_cents || !currency) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: amount_cents, currency' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create a PaymentIntent (not confirmed yet — client will confirm with card details)
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: booking.price_cents,
-      currency: booking.currency.toLowerCase(),
-      payment_method: paymentMethodId,
-      confirm: false,
-      setup_future_usage: 'off_session',
-      metadata: {
-        booking_id: bookingId,
-        service: booking.services.title,
+      amount: amount_cents,
+      currency: currency.toLowerCase(),
+      automatic_payment_methods: {
+        enabled: true,
       },
-      description: `HomeHeros: ${booking.services.title}`,
-      receipt_email: customer.email,
-      customer_email: customer.email,
-    })
+      metadata: {
+        booking_id: booking_id || '',
+        user_id: user.id,
+        source: 'homeheros_app',
+      },
+      receipt_email: customer_email || user.email || undefined,
+      description: `HomeHeros Booking${booking_id ? ` #${booking_id.substring(0, 8)}` : ''}`,
+    });
 
-    // Save payment record
-    const { data: payment, error: paymentError } = await supabase
-      .from('payments')
-      .insert({
-        booking_id: bookingId,
-        stripe_pi: paymentIntent.id,
-        amount_cents: booking.price_cents,
-        currency: booking.currency,
-        status: paymentIntent.status,
-      })
-      .select()
-      .single()
+    // Optionally save payment record to DB
+    if (booking_id) {
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    if (paymentError) {
-      console.error('Error saving payment record:', paymentError)
+      const { error: paymentError } = await supabaseAdmin
+        .from('payments')
+        .insert({
+          booking_id: booking_id,
+          stripe_pi: paymentIntent.id,
+          amount_cents: amount_cents,
+          currency: currency.toUpperCase(),
+          status: paymentIntent.status,
+        });
+
+      if (paymentError) {
+        console.error('Error saving payment record:', paymentError);
+        // Don't fail the request — the PaymentIntent was created successfully
+      }
     }
 
     return new Response(
       JSON.stringify({
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
-        paymentId: payment?.id,
+        status: paymentIntent.status,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error) {
-    console.error('Error creating payment intent:', error)
+    console.error('Stripe PaymentIntent error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+      JSON.stringify({ error: error.message || 'Internal server error' }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
-})
+});

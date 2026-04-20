@@ -75,6 +75,14 @@ const SignInScreen = ({ navigation }: any) => {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.forgotPassword}
+            onPress={() => navigation.navigate('ForgotPassword')}
+            disabled={loading}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.linkButton}
             onPress={() => navigation.navigate('LegalAcceptance')}
             disabled={loading}
@@ -137,6 +145,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  forgotPassword: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  forgotPasswordText: {
+    color: '#FF6B35',
+    fontSize: 14,
   },
   linkButton: {
     marginTop: 20,

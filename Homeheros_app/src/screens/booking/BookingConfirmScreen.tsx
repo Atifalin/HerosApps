@@ -6,16 +6,21 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { CardField, useConfirmPayment, CardFieldInput } from '@stripe/stripe-react-native';
 import { Typography, Button, Card } from '../../components/ui';
 import { theme } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { ScreenProps, Hero } from '../../navigation/types';
 import { paymentService, PaymentMethod } from '../../services/paymentService';
 import { supabase } from '../../lib/supabase';
+import { STRIPE_CONFIG } from '../../config/stripe';
+import { createStripePaymentIntent, updatePaymentStatus } from '../../services/stripeService';
 
 // Heroes will be fetched from Supabase
 
@@ -30,6 +35,10 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
+  const [useRealPayment, setUseRealPayment] = useState(false);
+  const [cardComplete, setCardComplete] = useState(false);
+  const [stripeCardholderName, setStripeCardholderName] = useState('');
+  const { confirmPayment, loading: stripeLoading } = useConfirmPayment();
 
   useEffect(() => {
     loadPaymentMethods();
@@ -84,10 +93,22 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
   const finalPricing = pricing;
 
   const handleConfirmBooking = async () => {
-    // Payment method is optional for mock payment
-    if (!selectedPaymentMethod && paymentMethods.length > 0) {
-      Alert.alert('Error', 'Please select a payment method');
-      return;
+    // If using real Stripe payment, validate card is complete
+    if (useRealPayment) {
+      if (!cardComplete) {
+        Alert.alert('Card Error', 'Please enter complete card details');
+        return;
+      }
+      if (!stripeCardholderName.trim()) {
+        Alert.alert('Card Error', 'Cardholder name is required');
+        return;
+      }
+    } else {
+      // Payment method is optional for mock payment
+      if (!selectedPaymentMethod && paymentMethods.length > 0) {
+        Alert.alert('Error', 'Please select a payment method');
+        return;
+      }
     }
 
     if (!user?.id) {
@@ -163,8 +184,58 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
         return;
       }
 
-      // 2. Create mock payment record (Stripe integration coming soon)
-      if (selectedPaymentMethod) {
+      // 3. Process payment — either real Stripe or mock
+      if (useRealPayment) {
+        // Step A: Create PaymentIntent via Edge Function
+        const stripeResult = await createStripePaymentIntent({
+          amountCents: Math.round(finalPricing.total * 100),
+          currency: 'cad',
+          bookingId: booking.id,
+          customerEmail: user.email || undefined,
+        });
+
+        if (!stripeResult.success || !stripeResult.clientSecret) {
+          Alert.alert('Payment Error', stripeResult.error || 'Failed to create payment');
+          return;
+        }
+
+        console.log('Stripe PaymentIntent created:', stripeResult.paymentIntentId);
+
+        // Step B: Confirm the payment with the Stripe SDK using the card details
+        const { paymentIntent, error: confirmError } = await confirmPayment(
+          stripeResult.clientSecret,
+          {
+            paymentMethodType: 'Card',
+            paymentMethodData: {
+              billingDetails: {
+                name: stripeCardholderName.trim(),
+                email: user.email || undefined,
+              },
+            },
+          }
+        );
+
+        if (confirmError) {
+          console.error('Stripe confirm error:', confirmError);
+          Alert.alert(
+            'Payment Failed',
+            confirmError.message || 'Your card was declined. Please try again.'
+          );
+          // Update payment status in DB
+          if (stripeResult.paymentIntentId) {
+            await updatePaymentStatus(stripeResult.paymentIntentId, 'failed');
+          }
+          return;
+        }
+
+        console.log('Stripe payment confirmed! Status:', paymentIntent?.status);
+
+        // Step C: Update payment status in DB
+        if (stripeResult.paymentIntentId && paymentIntent?.status) {
+          await updatePaymentStatus(stripeResult.paymentIntentId, paymentIntent.status);
+        }
+      } else if (selectedPaymentMethod) {
+        // Mock payment
         const paymentResult = await paymentService.createPaymentIntent(
           Math.round(finalPricing.total * 100), // Convert to cents
           'cad',
@@ -177,13 +248,13 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
           return;
         }
 
-        // 3. Update payment record with booking ID
+        // Update payment record with booking ID
         await supabase
           .from('payments')
           .update({ booking_id: booking.id })
           .eq('payment_intent_id', paymentResult.paymentIntent?.id);
       } else {
-        console.log('Mock payment - Stripe integration coming soon');
+        console.log('Mock payment - no payment method selected');
       }
 
       // 4. Insert add-ons if any were selected
@@ -421,6 +492,104 @@ export const BookingConfirmScreen: React.FC<ScreenProps<'BookingConfirm'>> = ({
           )}
         </Card>
 
+        {/* Real Stripe Payment (Preview) */}
+        <Card variant="default" padding="md" style={styles.stripeCard}>
+          <TouchableOpacity 
+            style={styles.stripeCardHeader}
+            onPress={() => setUseRealPayment(!useRealPayment)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.stripeCardHeaderLeft}>
+              <View style={styles.stripeBadge}>
+                <Ionicons name="flash" size={14} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Typography variant="body1" weight="semibold">
+                  Pay with Stripe
+                </Typography>
+                <Typography variant="caption" color="secondary">
+                  Real payment processing (Test Mode)
+                </Typography>
+              </View>
+            </View>
+            <View style={[
+              styles.stripeToggle,
+              useRealPayment && styles.stripeToggleActive
+            ]}>
+              <View style={[
+                styles.stripeToggleThumb,
+                useRealPayment && styles.stripeToggleThumbActive
+              ]} />
+            </View>
+          </TouchableOpacity>
+
+          {useRealPayment && (
+            <View style={styles.stripeFormContainer}>
+              <View style={styles.stripeTestBanner}>
+                <Ionicons name="information-circle" size={16} color="#635BFF" />
+                <Typography variant="caption" style={styles.stripeTestText}>
+                  Test mode — Use card 4242 4242 4242 4242
+                </Typography>
+              </View>
+
+              <View style={styles.stripeInputGroup}>
+                <Typography variant="caption" weight="medium" style={styles.stripeInputLabel}>
+                  Cardholder Name
+                </Typography>
+                <TextInput
+                  style={styles.stripeInput}
+                  placeholder="John Doe"
+                  placeholderTextColor="#9CA3AF"
+                  value={stripeCardholderName}
+                  onChangeText={setStripeCardholderName}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={styles.stripeInputGroup}>
+                <Typography variant="caption" weight="medium" style={styles.stripeInputLabel}>
+                  Card Details
+                </Typography>
+                <CardField
+                  postalCodeEnabled={false}
+                  placeholders={{
+                    number: '4242 4242 4242 4242',
+                  }}
+                  cardStyle={{
+                    backgroundColor: '#FAFAFA',
+                    textColor: '#1F2937',
+                    borderWidth: 1,
+                    borderColor: '#E5E7EB',
+                    borderRadius: 10,
+                    fontSize: 15,
+                    placeholderColor: '#9CA3AF',
+                  }}
+                  style={styles.stripeCardField}
+                  onCardChange={(cardDetails: CardFieldInput.Details) => {
+                    setCardComplete(cardDetails.complete);
+                  }}
+                />
+              </View>
+
+              {cardComplete && (
+                <View style={styles.stripeCardComplete}>
+                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                  <Typography variant="caption" style={{ color: '#10B981', marginLeft: 4 }}>
+                    Card details complete
+                  </Typography>
+                </View>
+              )}
+
+              <View style={styles.stripePoweredBy}>
+                <Ionicons name="lock-closed" size={12} color="#9CA3AF" />
+                <Typography variant="caption" color="secondary" style={{ marginLeft: 4 }}>
+                  Secured by Stripe
+                </Typography>
+              </View>
+            </View>
+          )}
+        </Card>
+
         {/* Final Pricing */}
         <Card variant="default" padding="md" style={styles.pricingCard}>
           <Typography variant="h6" weight="semibold" style={styles.sectionTitle}>
@@ -648,6 +817,115 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  stripeCard: {
+    marginBottom: theme.semanticSpacing.md,
+    borderWidth: 1,
+    borderColor: '#635BFF20',
+    ...theme.shadows.sm,
+  },
+  stripeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stripeCardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  stripeBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#635BFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stripeToggle: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  stripeToggleActive: {
+    backgroundColor: '#635BFF',
+  },
+  stripeToggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  stripeToggleThumbActive: {
+    alignSelf: 'flex-end',
+  },
+  stripeFormContainer: {
+    marginTop: theme.semanticSpacing.md,
+    paddingTop: theme.semanticSpacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#635BFF15',
+  },
+  stripeTestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#635BFF10',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: theme.semanticSpacing.md,
+    gap: 6,
+  },
+  stripeTestText: {
+    color: '#635BFF',
+    flex: 1,
+  },
+  stripeInputGroup: {
+    marginBottom: 12,
+  },
+  stripeInputLabel: {
+    marginBottom: 6,
+    color: '#6B7280',
+  },
+  stripeInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    backgroundColor: '#FAFAFA',
+  },
+  stripeCardField: {
+    width: '100%',
+    height: 50,
+    marginVertical: 4,
+  },
+  stripeCardComplete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stripePoweredBy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
   pricingCard: {
     ...theme.shadows.md,

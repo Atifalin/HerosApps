@@ -379,8 +379,8 @@
 
         <div class="filters">
             <select id="statusFilter">
-                <option value="all">All Statuses</option>
-                <option value="pending" selected>Pending</option>
+                <option value="all" selected>All Statuses</option>
+                <option value="pending">Pending</option>
                 <option value="verified">Verified</option>
                 <option value="rejected">Rejected</option>
             </select>
@@ -436,21 +436,28 @@
     <script>
         // Supabase Configuration
         const SUPABASE_URL = 'https://vttzuaerdwagipyocpha.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dHp1YWVyZHdhZ2lweW9jcGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0Nzc1NDMsImV4cCI6MjA3NDA1MzU0M30.-QyK-_-jrVowVoMFy8IpCeVaeP59VNUCZtRmTD6Pfwc';
+        // Use service_role key to bypass RLS (admin tool only - never expose in public apps)
+        const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dHp1YWVyZHdhZ2lweW9jcGhhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODQ3NzU0MywiZXhwIjoyMDc0MDUzNTQzfQ.yrWidHIlMbZfDxQ3OKcBJieColSjzbJM1A-ok74jvzQ';
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
         let contractors = [];
 
         // Initialize
         async function init() {
-            await loadContractors();
-            await loadProfiles();
+            console.log('Supabase client:', supabaseClient);
+            try {
+                await loadContractors();
+                await loadProfiles();
+            } catch (err) {
+                console.error('Init error:', err);
+                document.getElementById('profilesContainer').innerHTML = '<div class="empty-state"><h3>Init Error</h3><p>' + err.message + '</p></div>';
+            }
         }
 
         // Load contractors for dropdown
         async function loadContractors() {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('contractors')
                 .select('id, name')
                 .eq('status', 'active');
@@ -476,7 +483,7 @@
 
             try {
                 // Get all hero profiles with user info via join
-                const { data: heroes, error: heroesError } = await supabase
+                const { data: heroes, error: heroesError } = await supabaseClient
                     .from('heros')
                     .select(`
                         id,
@@ -503,7 +510,7 @@
                 let profiles = [];
                 
                 if (userIds.length > 0) {
-                    const { data: profileData, error: profilesError } = await supabase
+                    const { data: profileData, error: profilesError } = await supabaseClient
                         .from('profiles')
                         .select('id, email, name, role, status, created_at')
                         .in('id', userIds);
@@ -514,7 +521,7 @@
                 }
 
                 // Also get hero role users without hero profile
-                const { data: heroRoleUsers, error: heroRoleError } = await supabase
+                const { data: heroRoleUsers, error: heroRoleError } = await supabaseClient
                     .from('profiles')
                     .select('id, email, name, role, status, created_at')
                     .eq('role', 'hero');
@@ -669,7 +676,7 @@
             if (!confirm(`Approve hero profile for ${email}?`)) return;
 
             // First, check if contractor_id is missing and set default if needed
-            const { data: heroData } = await supabase
+            const { data: heroData } = await supabaseClient
                 .from('heros')
                 .select('contractor_id')
                 .eq('id', heroId)
@@ -685,7 +692,7 @@
                 updateData.contractor_id = '550e8400-e29b-41d4-a716-446655440000'; // Default contractor
             }
 
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('heros')
                 .update(updateData)
                 .eq('id', heroId);
@@ -703,7 +710,7 @@
             const reason = prompt(`Reject hero profile for ${email}?\n\nEnter rejection reason:`);
             if (!reason) return;
 
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('heros')
                 .update({ 
                     verification_status: 'rejected',
@@ -745,7 +752,7 @@
                     : email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                 
                 // Create hero profile with defaults and immediately verify
-                const { data: heroData, error: heroError } = await supabase
+                const { data: heroData, error: heroError } = await supabaseClient
                     .from('heros')
                     .insert({
                         user_id: userId,
@@ -796,7 +803,7 @@
 
             try {
                 // Get user by email
-                const { data: profiles, error: profileError } = await supabase
+                const { data: profiles, error: profileError } = await supabaseClient
                     .from('profiles')
                     .select('id, role')
                     .eq('email', email)
@@ -806,7 +813,7 @@
 
                 // Update role to hero if needed
                 if (profiles.role !== 'hero') {
-                    const { error: updateError } = await supabase
+                    const { error: updateError } = await supabaseClient
                         .from('profiles')
                         .update({ role: 'hero' })
                         .eq('id', profiles.id);
@@ -815,7 +822,7 @@
                 }
 
                 // Create hero profile with default contractor if not provided
-                const { error: heroError } = await supabase
+                const { error: heroError } = await supabaseClient
                     .from('heros')
                     .insert({
                         user_id: profiles.id,

@@ -28,6 +28,12 @@ output/
 **/*.apk
 **/*.aab
 
+# Auto-generated native projects (regenerated via `expo prebuild`)
+Homeheros_app/ios/
+Homeheros_app/android/
+Homeheros_go_app/ios/
+Homeheros_go_app/android/
+
 # TypeScript
 *.tsbuildinfo
 
@@ -42,6 +48,12 @@ logs/system/
 .env.*
 **/.env
 **/.env.*
+
+# API Keys and Secrets
+Docs/stripe.keys
+Docs/*.keys
+Docs/api-keys/
+Docs/api-keys.md
 
 # Supabase local
 supabase/.branches

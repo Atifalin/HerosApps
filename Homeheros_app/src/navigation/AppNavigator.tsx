@@ -1,5 +1,6 @@
 import React, { useState, useEffect, ComponentType } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { navigationRef } from './navigationRef';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,6 +9,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
+import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
+import { ResetPasswordScreen } from '../screens/auth/ResetPasswordScreen';
+import { EmailConfirmationScreen } from '../screens/auth/EmailConfirmationScreen';
 import { HomeScreen } from '../screens/main/HomeScreen';
 import { PromosScreen } from '../screens/main/PromosScreen';
 import { AccountScreen } from '../screens/main/AccountScreen';
@@ -116,7 +120,7 @@ export const AppNavigator: React.FC = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isFirstLaunch ? (
           // First time user - show onboarding
@@ -132,10 +136,13 @@ export const AppNavigator: React.FC = () => {
           </>
         )}
         
-        {/* Auth screens accessible from onboarding */}
+        {/* Auth-related screens always available (reachable from onboarding, login, or main) */}
         <Stack.Group screenOptions={{ presentation: 'modal' }}>
           <Stack.Screen name="Auth" component={LoginScreen} />
           <Stack.Screen name="AuthSignUp" component={SignUpScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
         </Stack.Group>
         
         {/* Main app screens */}

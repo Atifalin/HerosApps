@@ -55,14 +55,14 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const { error } = await signUp(email, password);
+      const result = await signUp(email, password);
+      setLoading(false);
 
-      if (error) {
-        setLoading(false);
-        console.log('Error details:', JSON.stringify(error));
+      if (result.error) {
+        console.log('Error details:', JSON.stringify(result.error));
         
         // If user already exists, offer to navigate to sign in
-        if (error.message?.toLowerCase().includes('already exists')) {
+        if (result.error.message?.toLowerCase().includes('already exists')) {
           Alert.alert(
             'Account Already Exists',
             'An account with this email already exists. Would you like to sign in instead?',
@@ -72,28 +72,21 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
             ]
           );
         } else {
-          Alert.alert('Sign Up Failed', error.message || 'Network request failed. Please check your connection.');
+          Alert.alert('Sign Up Failed', result.error.message || 'Network request failed. Please check your connection.');
         }
         return;
       }
 
-      // Sign up successful - now automatically sign in
-      console.log('✅ Sign up successful, signing in...');
-      const { error: signInError } = await signIn(email, password);
-      
-      setLoading(false);
-
-      if (signInError) {
-        console.error('Sign in after signup failed:', signInError);
-        Alert.alert(
-          'Account Created',
-          'Your account was created successfully, but automatic sign-in failed. Please sign in manually.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Auth') }]
-        );
-      } else {
-        console.log('✅ Automatically signed in after sign up');
-        // Navigation will happen automatically via AuthContext state change
+      // If email confirmation is required, navigate to confirmation screen
+      if (result.needsConfirmation) {
+        console.log('✅ Sign up successful, email confirmation required');
+        navigation.navigate('EmailConfirmation', { email });
+        return;
       }
+
+      // Otherwise, user is automatically signed in (email confirmation disabled)
+      console.log('✅ Sign up successful, user authenticated');
+      // Navigation will happen automatically via AuthContext state change
     } catch (err) {
       setLoading(false);
       console.error('Unexpected error during signup:', err);
@@ -150,7 +143,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
             />
 
             <Button
-              title={loading ? 'Creating Account...' : 'Create Account & Sign In'}
+              title={loading ? 'Creating Account...' : 'Create Account'}
               onPress={handleSignUp}
               loading={loading}
               disabled={loading}

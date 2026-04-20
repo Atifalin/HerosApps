@@ -4,13 +4,16 @@ import { supabase, UserProfile } from '../lib/supabase';
 import { testSupabaseConnection } from '../utils/testSupabase';
 import { testNetworkConnectivity } from '../utils/networkTest';
 import { debugSupabaseSetup } from '../utils/debugSupabase';
+import { navigate } from '../navigation/navigationRef';
+import { subscribeToAuthDeepLinks } from '../lib/deepLinkHandler';
+import { isRecoveryActive } from '../lib/authRecoveryState';
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string) => Promise<{ error?: any; needsConfirmation?: boolean; user?: User }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
   resetPassword: (email: string) => Promise<{ error: any }>;
@@ -101,6 +104,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 Auth state changed:', event, session?.user?.email);
       
+      // Handle password recovery from email deep link
+      // NOTE: We intentionally do NOT set user state here, so the app stays in
+      // the unauthenticated stack where ResetPassword screen lives. The Supabase
+      // client still has the recovery session internally, so updateUser() will work.
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('🔐 PASSWORD_RECOVERY event - navigating to ResetPassword');
+        setLoading(false);
+        setTimeout(() => navigate('ResetPassword'), 100);
+        return;
+      }
+
+      // If we're in the middle of a password recovery flow, Supabase often
+      // fires SIGNED_IN (instead of PASSWORD_RECOVERY) after setSession. In
+      // that case, ignore the session so the user doesn't get logged in.
+      if (isRecoveryActive() && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
+        console.log('🔐 Recovery active - ignoring', event, 'to keep ResetPassword reachable');
+        setLoading(false);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -117,7 +140,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Subscribe to incoming auth deep links (password reset, email confirmation)
+    const unsubscribeDeepLinks = subscribeToAuthDeepLinks();
+
+    return () => {
+      subscription.unsubscribe();
+      unsubscribeDeepLinks();
+    };
   }, []);
 
   const signUp = async (email: string, password: string) => {
@@ -154,11 +183,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Check if user was created but no session (unconfirmed email)
       if (data.user && !data.session) {
-        console.warn('User created but no session - email confirmation may be required');
+        console.log('✅ User created, email confirmation required');
         return { 
-          error: { 
-            message: 'Account created but email confirmation is required. Please check your email or contact support.' 
-          } 
+          needsConfirmation: true,
+          user: data.user
         };
       }
       
