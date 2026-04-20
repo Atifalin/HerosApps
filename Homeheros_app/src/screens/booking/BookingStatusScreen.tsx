@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Button, Card } from '../../components/ui';
 import { LiveMap } from '../../components/LiveMap';
+import { BookingPhotoTimeline } from '../../components/BookingPhotoTimeline';
 import { theme } from '../../theme';
 import { ScreenProps, Booking } from '../../navigation/types';
 import { supabase } from '../../lib/supabase';
@@ -511,6 +512,11 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
             />
           </Card>
         )}
+
+        {/* Job Progress Photos (arrival / before / after) */}
+        {['enroute', 'arrived', 'in_progress', 'completed', 'rated'].includes(
+          booking.status as any
+        ) && <BookingPhotoTimeline bookingId={booking.id} />}
 
         {/* Hero Information & Contact (only show if hero is assigned) */}
         {booking.hero && (

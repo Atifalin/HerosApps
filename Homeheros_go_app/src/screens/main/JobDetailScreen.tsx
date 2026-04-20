@@ -12,16 +12,14 @@ import {
   Dimensions,
   Platform,
   StatusBar,
-  Image,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
-import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { jobService } from '../../services/jobService';
 import { gpsService } from '../../services/gpsService';
 import { useAuth } from '../../contexts/AuthContext';
+import { PhotoCaptureModal, PhotoCheckpoint } from '../../components/PhotoCaptureModal';
 
 const { width } = Dimensions.get('window');
 const STATUSBAR_HEIGHT = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
@@ -65,9 +63,7 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ route, navigation }) 
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoCheckpoint, setPhotoCheckpoint] = useState<PhotoCheckpoint | null>(null);
   const [hasAccepted, setHasAccepted] = useState(false);
 
   useEffect(() => {
@@ -313,137 +309,58 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ route, navigation }) 
     }
   };
 
-  // Mark arrived and stop GPS
-  const handleMarkArrived = async () => {
+  // Each status transition (arrived/in_progress/completed) opens the
+  // PhotoCaptureModal. The status is then updated only after the photo is
+  // successfully uploaded, since the DB trigger will otherwise reject it.
+  const handleMarkArrived = () => setPhotoCheckpoint('arrival');
+  const handleStartJob = () => setPhotoCheckpoint('before');
+  const handleCompleteJob = () => setPhotoCheckpoint('after');
+
+  const handlePhotoSuccess = async (photo: {
+    id: string;
+    distance_from_address_m: number | null;
+    inside_geofence: boolean | null;
+  }) => {
+    const checkpoint = photoCheckpoint;
+    setPhotoCheckpoint(null);
+
+    if (!checkpoint) return;
+
     setUpdating(true);
 
-    // Stop GPS tracking
-    await gpsService.stopTracking();
-    setIsTracking(false);
+    let result: { success: boolean; error?: string };
+    if (checkpoint === 'arrival') {
+      // Stop enroute GPS tracking
+      await gpsService.stopTracking();
+      setIsTracking(false);
+      result = await jobService.markArrived(jobId);
+    } else if (checkpoint === 'before') {
+      result = await jobService.startJob(jobId);
+    } else {
+      // 'after'
+      result = await jobService.updateJobStatus({
+        bookingId: jobId,
+        newStatus: 'completed',
+        notes: 'Hero completed the job',
+      });
+    }
 
-    // Update status
-    const result = await jobService.markArrived(jobId);
     setUpdating(false);
 
     if (result.success) {
-      Alert.alert('Arrived', 'Customer has been notified of your arrival.');
+      const successMsg =
+        checkpoint === 'arrival'
+          ? 'Customer has been notified of your arrival.'
+          : checkpoint === 'before'
+          ? 'Timer started. Good luck!'
+          : 'Great work! The customer will be notified.';
+      Alert.alert(
+        checkpoint === 'arrival' ? 'Arrived' : checkpoint === 'before' ? 'Job Started' : 'Job Completed',
+        successMsg,
+      );
       loadJobDetails();
     } else {
       Alert.alert('Error', result.error || 'Failed to update status');
-    }
-  };
-
-  // Start job
-  const handleStartJob = async () => {
-    setUpdating(true);
-    const result = await jobService.startJob(jobId);
-    setUpdating(false);
-
-    if (result.success) {
-      Alert.alert('Job Started', 'Timer started. Good luck!');
-      loadJobDetails();
-    } else {
-      Alert.alert('Error', result.error || 'Failed to start job');
-    }
-  };
-
-  // Complete job with photo
-  const handleCompleteJob = () => {
-    Alert.alert(
-      'Complete Job',
-      'Please take a photo of the completed work before marking as complete.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Skip Photo (Testing)', onPress: handleCompleteWithoutPhoto },
-        { text: 'Take Photo', onPress: () => setShowPhotoModal(true) }
-      ]
-    );
-  };
-
-  // Complete job without photo (for testing on simulator)
-  const handleCompleteWithoutPhoto = async () => {
-    setUpdating(true);
-    const result = await jobService.updateJobStatus({
-      bookingId: jobId,
-      newStatus: 'completed',
-      notes: 'Hero completed the job (no photo - testing)'
-    });
-    setUpdating(false);
-
-    if (result.success) {
-      Alert.alert('Job Completed', 'Great work!');
-      loadJobDetails();
-    } else {
-      Alert.alert('Error', result.error || 'Failed to complete job');
-    }
-  };
-
-  // Take photo
-  const handleTakePhoto = async () => {
-    try {
-      console.log('Requesting camera permissions...');
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      
-      console.log('Camera permission status:', status);
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Camera permission is required to take photos');
-        return;
-      }
-
-      console.log('Launching camera...');
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      console.log('Camera result:', result);
-      if (!result.canceled && result.assets[0]) {
-        console.log('Photo selected:', result.assets[0].uri);
-        setSelectedPhoto(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to open camera: ' + error);
-    }
-  };
-
-  // Upload photo and complete job
-  const handleUploadAndComplete = async () => {
-    if (!selectedPhoto || !heroProfile) {
-      Alert.alert('Error', 'Please take a photo first');
-      return;
-    }
-
-    setUploadingPhoto(true);
-
-    // Upload photo
-    const uploadResult = await jobService.uploadJobPhoto({
-      bookingId: jobId,
-      heroId: heroProfile.id,
-      photoUri: selectedPhoto,
-      photoType: 'completion',
-      caption: 'Job completion photo'
-    });
-
-    if (!uploadResult.success) {
-      setUploadingPhoto(false);
-      Alert.alert('Upload Error', uploadResult.error || 'Failed to upload photo');
-      return;
-    }
-
-    // Complete job
-    const completeResult = await jobService.completeJob(jobId, uploadResult.photoUrl!);
-    setUploadingPhoto(false);
-
-    if (completeResult.success) {
-      setShowPhotoModal(false);
-      setSelectedPhoto(null);
-      Alert.alert('Job Completed', 'Great work! The customer will be notified.');
-      loadJobDetails();
-    } else {
-      Alert.alert('Error', completeResult.error || 'Failed to complete job');
     }
   };
 
@@ -799,63 +716,17 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ route, navigation }) 
         </View>
       </ScrollView>
 
-      {/* Photo Upload Modal */}
-      <Modal
-        visible={showPhotoModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowPhotoModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Job Completion Photo</Text>
-            <Text style={styles.modalSubtitle}>Take a photo of the completed work</Text>
-
-            {selectedPhoto ? (
-              <View style={styles.photoPreview}>
-                <Image source={{ uri: selectedPhoto }} style={styles.photoImage} />
-                <TouchableOpacity 
-                  style={styles.retakeButton}
-                  onPress={handleTakePhoto}
-                >
-                  <Text style={styles.retakeButtonText}>Retake Photo</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.takePhotoButton} onPress={handleTakePhoto}>
-                <Ionicons name="camera" size={48} color="#FF6B35" />
-                <Text style={styles.takePhotoText}>Take Photo</Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.modalCancelButton]}
-                onPress={() => {
-                  setShowPhotoModal(false);
-                  setSelectedPhoto(null);
-                }}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              {selectedPhoto && (
-                <TouchableOpacity 
-                  style={[styles.modalButton, styles.modalConfirmButton]}
-                  onPress={handleUploadAndComplete}
-                  disabled={uploadingPhoto}
-                >
-                  {uploadingPhoto ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.modalConfirmText}>Complete Job</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* Photo Capture Modal (arrival / before / after) */}
+      {photoCheckpoint && heroProfile && (
+        <PhotoCaptureModal
+          visible={true}
+          bookingId={jobId}
+          heroId={heroProfile.id}
+          photoType={photoCheckpoint}
+          onClose={() => setPhotoCheckpoint(null)}
+          onSuccess={handlePhotoSuccess}
+        />
+      )}
     </View>
   );
 };
