@@ -227,7 +227,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       'handymen': require('../../../assets/Services_images/handyman.png'),
       'auto-services': require('../../../assets/Services_images/auto.png'),
       'personal-care': require('../../../assets/Services_images/personalcare.png'),
-      'moving-services': require('../../../assets/Services_images/handyman.png'), // TODO: Add moving.png image
+      'moving-services': require('../../../assets/Services_images/moving.png'),
     };
     return imageMap[slug] || require('../../../assets/Services_images/cleaning.png');
   };

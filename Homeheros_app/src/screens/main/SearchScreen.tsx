@@ -14,8 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Typography, Card } from '../../components/ui';
 import { theme } from '../../theme';
 import { useLocation } from '../../contexts/LocationContext';
+import Fuse from 'fuse.js';
 import { supabase } from '../../lib/supabase';
 import { serviceCatalog } from '../../data/serviceCatalog';
+import { expandQuery, didYouMean } from '../../lib/searchSynonyms';
 
 interface SearchScreenProps {
   navigation: any;
@@ -172,49 +174,17 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
   const [recentSearches, setRecentSearches] = useState<string[]>([
     'cleaning', 'chef', 'plumbing'
   ]);
+  // All searchable items, built once from Supabase + serviceCatalog
+  const [searchIndex, setSearchIndex] = React.useState<SearchResult[]>([]);
+  const [indexReady, setIndexReady] = React.useState(false);
+  // Fuse instance persisted via ref so the index is built only when data changes
+  const fuseRef = React.useRef<Fuse<SearchResult> | null>(null);
 
-  // Load popular services on mount
+  // Build index once on mount
   useEffect(() => {
-    const loadPopularServices = async () => {
+    const buildIndex = async () => {
       try {
         const { data, error } = await supabase
-          .from('services')
-          .select('id, title, slug, icon, color, description')
-          .eq('active', true)
-          .limit(4);
-
-        if (!error && data) {
-          const popular = data.map(service => ({
-            id: service.id,
-            type: 'service' as const,
-            title: service.title,
-            description: service.description || '',
-            icon: service.icon as keyof typeof Ionicons.glyphMap,
-            color: service.color,
-          }));
-          setPopularServices(popular);
-        }
-      } catch (error) {
-        console.error('Error loading popular services:', error);
-      }
-    };
-
-    loadPopularServices();
-  }, []);
-
-  // Perform search when query changes
-  useEffect(() => {
-    if (query.trim() === '') {
-      setResults([]);
-      return;
-    }
-
-    const performSearch = async () => {
-      setLoading(true);
-      
-      try {
-        // Fetch ALL services with their variants to search through them
-        const { data: servicesData, error: servicesError } = await supabase
           .from('services')
           .select(`
             id,
@@ -233,73 +203,109 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
           `)
           .eq('active', true);
 
-        if (servicesError) {
-          console.error('Search error:', servicesError);
-          setResults([]);
-          setLoading(false);
+        if (error) {
+          console.error('Index build error:', error);
+          setIndexReady(true);
           return;
         }
 
-        const searchResults: SearchResult[] = [];
-        const lowerQuery = query.toLowerCase();
-
-        // Search through all services and variants
-        servicesData?.forEach(service => {
-          const serviceMatches = 
-            service.title.toLowerCase().includes(lowerQuery) ||
-            service.description?.toLowerCase().includes(lowerQuery);
-
-          // Add service if it matches
-          if (serviceMatches) {
-            searchResults.push({
-              id: service.id,
-              type: 'service',
-              title: service.title,
-              description: service.description || '',
-              icon: service.icon as keyof typeof Ionicons.glyphMap,
-              color: service.color,
-            });
-          }
-
-          // Always check subcategories for matches
+        const items: SearchResult[] = [];
+        data?.forEach((service: any) => {
+          items.push({
+            id: service.id,
+            type: 'service',
+            title: service.title,
+            description: service.description || '',
+            icon: service.icon as keyof typeof Ionicons.glyphMap,
+            color: service.color,
+          });
           service.service_variants?.forEach((variant: any) => {
-            if (
-              variant.name.toLowerCase().includes(lowerQuery) ||
-              variant.description?.toLowerCase().includes(lowerQuery)
-            ) {
-              searchResults.push({
-                id: variant.id,
-                type: 'subcategory',
-                title: variant.name,
-                description: variant.description || '',
-                parentId: service.id,
-                parentName: service.title,
-                price: variant.base_price ? `From $${(variant.base_price / 100).toFixed(0)}` : 'Custom pricing',
-              });
-            }
+            items.push({
+              id: variant.id,
+              type: 'subcategory',
+              title: variant.name,
+              description: variant.description || '',
+              parentId: service.id,
+              parentName: service.title,
+              price: variant.base_price
+                ? `From $${(variant.base_price / 100).toFixed(0)}`
+                : 'Custom pricing',
+            });
           });
         });
 
-        setResults(searchResults);
-        
-        // Add to recent searches if not already there
-        if (query.trim() !== '' && !recentSearches.includes(query.trim())) {
-          setRecentSearches(prev => [query.trim(), ...prev.slice(0, 4)]);
+        // Build Fuse index with fuzzy settings tuned for service lookup
+        fuseRef.current = new Fuse(items, {
+          // Fields we search, weighted so exact title > description
+          keys: [
+            { name: 'title', weight: 0.6 },
+            { name: 'description', weight: 0.25 },
+            { name: 'parentName', weight: 0.15 },
+          ],
+          includeScore: true,
+          // 0.0 = exact, 1.0 = anything. 0.4 allows 1-2 char typos in short words.
+          threshold: 0.4,
+          // Lets the match appear anywhere in the string (important for short
+          // queries like "clean")
+          ignoreLocation: true,
+          // Break search terms on whitespace so "swim pool" finds both words
+          useExtendedSearch: true,
+          minMatchCharLength: 2,
+        });
+        setSearchIndex(items);
+        setIndexReady(true);
+
+        // Popular services = first 4 services
+        const popular = items.filter((i) => i.type === 'service').slice(0, 4);
+        setPopularServices(popular);
+      } catch (err) {
+        console.error('Index build exception:', err);
+        setIndexReady(true);
+      }
+    };
+
+    buildIndex();
+  }, []);
+
+  // Perform search when query changes
+  useEffect(() => {
+    const q = query.trim();
+    if (q === '') {
+      setResults([]);
+      return;
+    }
+    if (!indexReady || !fuseRef.current) return;
+
+    const timer = setTimeout(() => {
+      setLoading(true);
+      try {
+        const expanded = expandQuery(q);
+        const matches = fuseRef.current!.search(expanded, { limit: 20 });
+
+        // De-dupe by id while preserving Fuse's relevance ordering
+        const seen = new Set<string>();
+        const ordered: SearchResult[] = [];
+        matches.forEach((m) => {
+          if (seen.has(m.item.id)) return;
+          seen.add(m.item.id);
+          ordered.push(m.item);
+        });
+
+        setResults(ordered);
+
+        if (q !== '' && !recentSearches.includes(q)) {
+          setRecentSearches((prev) => [q, ...prev.slice(0, 4)]);
         }
-      } catch (error) {
-        console.error('Search error:', error);
+      } catch (err) {
+        console.error('Search error:', err);
         setResults([]);
       } finally {
         setLoading(false);
       }
-    };
+    }, 200);
 
-    const timer = setTimeout(() => {
-      performSearch();
-    }, 500);
-    
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, indexReady]);
 
   const handleClearSearch = () => {
     setQuery('');
@@ -485,6 +491,16 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route })
           <Typography variant="body2" color="secondary" align="center">
             We couldn't find any matches for "{query}"
           </Typography>
+          {!!didYouMean(query) && (
+            <TouchableOpacity
+              onPress={() => setQuery(didYouMean(query)!.replace(/^Did you mean /, '').replace(/\?$/, '').split(',')[0].trim())}
+              style={styles.didYouMean}
+            >
+              <Typography variant="body2" color="brand" weight="medium" align="center">
+                {didYouMean(query)}
+              </Typography>
+            </TouchableOpacity>
+          )}
           <Typography variant="body2" color="secondary" align="center">
             Try different keywords or browse services
           </Typography>
@@ -641,6 +657,14 @@ const styles = StyleSheet.create({
   noResultsTitle: {
     marginTop: theme.semanticSpacing.md,
     marginBottom: theme.semanticSpacing.sm,
+  },
+  didYouMean: {
+    marginTop: theme.semanticSpacing.sm,
+    marginBottom: theme.semanticSpacing.sm,
+    paddingHorizontal: theme.semanticSpacing.md,
+    paddingVertical: theme.semanticSpacing.sm,
+    backgroundColor: `${theme.colors.primary.main}15`,
+    borderRadius: 8,
   },
   recentSearchesContainer: {
     flex: 1,

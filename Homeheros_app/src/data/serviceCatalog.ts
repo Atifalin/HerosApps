@@ -370,7 +370,7 @@ export const serviceCatalog: ServiceCategory[] = [
     icon: 'cube-outline',
     color: '#00CEC9',
     description: 'Packing & Moving',
-    image: require('../../assets/Services_images/handyman.png'), // TODO: Add moving.png
+    image: require('../../assets/Services_images/moving.png'),
     callOutFee: '$50 call-out fee',
     minDuration: 120, // 2 hours
     maxDuration: 480, // 8 hours

@@ -534,7 +534,7 @@ export const BookingStatusScreen: React.FC<ScreenProps<'BookingStatus'>> = ({
                 <Typography variant="h6" weight="semibold">
                   {booking.hero?.name || 'Service Provider'}
                 </Typography>
-                {booking.hero?.rating && (
+                {!!booking.hero?.rating && (
                   <View style={styles.ratingContainer}>
                     <Ionicons name="star" size={16} color="#FFB800" />
                     <Typography variant="body2" style={styles.ratingText}>

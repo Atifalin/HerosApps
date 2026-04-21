@@ -127,7 +127,7 @@ export const PromosScreen: React.FC<PromosScreenProps> = ({ navigation }) => {
               </Typography>
               <View style={styles.featuredButtons}>
                 <Button 
-                  title={copiedCode === 'WELCOME25' ? 'Copied!' : 'Copy Code'}
+                  title={copiedCode === 'WELCOME25' ? 'Copied!' : 'Copy'}
                   size="sm"
                   variant={copiedCode === 'WELCOME25' ? 'outline' : 'primary'}
                   onPress={() => handleCopyCode('WELCOME25')}
@@ -257,11 +257,13 @@ const styles = StyleSheet.create({
   },
   featuredContent: {
     flexDirection: 'row',
-    height: 180,
+    minHeight: 200,
+    alignItems: 'stretch',
   },
   featuredTextContent: {
-    flex: 3,
-    padding: theme.semanticSpacing.md,
+    flex: 1,
+    paddingHorizontal: theme.semanticSpacing.md,
+    paddingVertical: theme.semanticSpacing.md,
     justifyContent: 'center',
   },
   featuredTitle: {
@@ -269,9 +271,10 @@ const styles = StyleSheet.create({
   },
   featuredDescription: {
     marginBottom: theme.semanticSpacing.md,
+    lineHeight: 20,
   },
   featuredImageContainer: {
-    flex: 2,
+    width: 120,
     backgroundColor: theme.colors.primary.main,
     justifyContent: 'center',
     alignItems: 'center',
@@ -283,29 +286,34 @@ const styles = StyleSheet.create({
     paddingVertical: theme.semanticSpacing.xs / 2,
     borderRadius: theme.borderRadius.sm,
     alignSelf: 'flex-start',
-    marginBottom: theme.semanticSpacing.xs,
+    marginBottom: theme.semanticSpacing.sm,
   },
   newBadgeText: {
     fontSize: 10,
     fontWeight: 'bold',
   },
   discountBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   featuredButtons: {
     flexDirection: 'row',
     gap: theme.semanticSpacing.sm,
+    marginTop: theme.semanticSpacing.xs,
   },
   copyButton: {
     flex: 1,
+    minWidth: 0,
   },
   useButton: {
     flex: 1,
+    minWidth: 0,
   },
   applyButton: {
     marginLeft: theme.semanticSpacing.xs,

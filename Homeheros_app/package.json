@@ -27,6 +27,7 @@
     "expo-location": "~19.0.7",
     "expo-secure-store": "^15.0.7",
     "expo-status-bar": "~3.0.8",
+    "fuse.js": "^7.3.0",
     "lottie-react-native": "^7.3.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
