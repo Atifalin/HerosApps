@@ -603,9 +603,10 @@
     <script>
         // Supabase Configuration
         const SUPABASE_URL = 'https://vttzuaerdwagipyocpha.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dHp1YWVyZHdhZ2lweW9jcGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0Nzc1NDMsImV4cCI6MjA3NDA1MzU0M30.-QyK-_-jrVowVoMFy8IpCeVaeP59VNUCZtRmTD6Pfwc';
+        // Service role key - bypasses RLS (admin tool only, never expose in public apps)
+        const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dHp1YWVyZHdhZ2lweW9jcGhhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODQ3NzU0MywiZXhwIjoyMDc0MDUzNTQzfQ.yrWidHIlMbZfDxQ3OKcBJieColSjzbJM1A-ok74jvzQ';
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
         let allJobs = [];
         let jobs = [];
@@ -636,7 +637,7 @@
         // Load services for filter
         async function loadServices() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await sb
                     .from('services')
                     .select('id, title')
                     .eq('status', 'active');
@@ -667,7 +668,7 @@
             try {
                 const statusFilter = document.getElementById('statusFilter').value;
                 
-                let query = supabase
+                let query = sb
                     .from('bookings')
                     .select(`
                         *,
@@ -730,7 +731,7 @@
             container.innerHTML = '<div class="loading">Loading heroes...</div>';
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await sb
                     .from('heros')
                     .select('*')
                     .eq('status', 'active')
@@ -749,7 +750,7 @@
         // Load jobs assigned to each hero
         async function loadHeroJobs() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await sb
                     .from('bookings')
                     .select('id, hero_id, service_name, status, scheduled_at, price_cents')
                     .not('hero_id', 'is', null)
@@ -1007,7 +1008,7 @@
         // Assign job to hero
         async function assignJob(jobId, heroId) {
             try {
-                const { error } = await supabase
+                const { error } = await sb
                     .from('bookings')
                     .update({ hero_id: heroId, status: 'awaiting_hero_accept' })
                     .eq('id', jobId);
@@ -1025,7 +1026,7 @@
         async function unassignJob(jobId) {
             if (!confirm('Unassign this job?')) return;
             try {
-                const { error } = await supabase
+                const { error } = await sb
                     .from('bookings')
                     .update({ hero_id: null, status: 'requested' })
                     .eq('id', jobId);
@@ -1045,10 +1046,10 @@
                 const today = new Date().toISOString().split('T')[0];
                 
                 const [unassigned, awaiting, inProgress, completed] = await Promise.all([
-                    supabase.from('bookings').select('id', { count: 'exact' }).eq('status', 'requested'),
-                    supabase.from('bookings').select('id', { count: 'exact' }).eq('status', 'awaiting_hero_accept'),
-                    supabase.from('bookings').select('id', { count: 'exact' }).in('status', ['enroute', 'arrived', 'in_progress']),
-                    supabase.from('bookings').select('id, price_cents', { count: 'exact' }).eq('status', 'completed').gte('updated_at', today)
+                    sb.from('bookings').select('id', { count: 'exact' }).eq('status', 'requested'),
+                    sb.from('bookings').select('id', { count: 'exact' }).eq('status', 'awaiting_hero_accept'),
+                    sb.from('bookings').select('id', { count: 'exact' }).in('status', ['enroute', 'arrived', 'in_progress']),
+                    sb.from('bookings').select('id, price_cents', { count: 'exact' }).eq('status', 'completed').gte('updated_at', today)
                 ]);
 
                 document.getElementById('unassignedCount').textContent = unassigned.count || 0;

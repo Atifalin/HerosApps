@@ -8,7 +8,8 @@ export const SUPPORTED_CITIES = [
   'Vernon',
   'Penticton',
   'West Kelowna',
-  'Salmon Arm'
+  'Salmon Arm',
+  'Metro Vancouver'
 ];
 
 interface LocationContextType {
@@ -51,6 +52,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         'Penticton': { lat: 49.4991, lng: -119.5937 },
         'West Kelowna': { lat: 49.8636, lng: -119.5833 },
         'Salmon Arm': { lat: 50.7001, lng: -119.2838 },
+        'Metro Vancouver': { lat: 49.2827, lng: -123.1207 },
       };
       
       // Calculate distance to each city

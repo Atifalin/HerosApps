@@ -721,7 +721,7 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ route, navigation }) 
         <PhotoCaptureModal
           visible={true}
           bookingId={jobId}
-          heroId={heroProfile.id}
+          heroId={heroProfile.user_id}
           photoType={photoCheckpoint}
           onClose={() => setPhotoCheckpoint(null)}
           onSuccess={handlePhotoSuccess}

@@ -2,7 +2,7 @@
   "expo": {
     "name": "HomeHeros Go",
     "slug": "homeheros-go",
-    "version": "0.06",
+    "version": "0.07",
     "scheme": "homeheros-go",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.homeheros.provider",
-      "buildNumber": "0.06",
+      "buildNumber": "0.07",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "HomeHeros Go needs your location to navigate to job locations and provide accurate ETA to customers.",
@@ -39,7 +39,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.homeheros.provider",
-      "versionCode": 6,
+      "versionCode": 7,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
